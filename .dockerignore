@@ -1,0 +1,11 @@
+# Exclude from build context (nothing outside these is copied into the image
+# except explicit COPY lines, but keeping context small speeds builds).
+.git
+.github
+docs
+*.md
+*.png
+*.jpg
+.DS_Store
+node_modules
+**/node_modules
