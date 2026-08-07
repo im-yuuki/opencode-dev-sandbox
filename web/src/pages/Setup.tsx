@@ -1,17 +1,15 @@
-import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, type SubmitEvent } from "react";
 import { Input, Button } from "@heroui/react";
 import { ShieldCheck } from "lucide-react";
 import { api } from "../api";
 
 export function SetupPage({ user }: { user: string }) {
-  const nav = useNavigate();
   const [pw, setPw] = useState("");
   const [confirm, setConfirm] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: FormEvent) {
+  async function submit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setErr(null);
     if (pw.length < 6) {
@@ -26,7 +24,8 @@ export function SetupPage({ user }: { user: string }) {
     try {
       await api.setup(pw);
       await api.login(pw);
-      nav("/", { replace: true });
+      // Full reload: the auth gate caches boot state at mount (see Login.tsx).
+      window.location.assign("/ui/");
     } catch (er) {
       setErr((er as Error).message || "Could not set password.");
     } finally {
@@ -35,10 +34,10 @@ export function SetupPage({ user }: { user: string }) {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center px-4">
+    <div className="grid h-screen place-items-center px-4">
       <form onSubmit={submit} className="devbox-card w-full max-w-sm p-8">
         <div className="mb-1 flex items-center gap-2">
-          <span className="rounded-lg bg-zinc-100 p-2 text-zinc-500">
+          <span className="devbox-chip p-2">
             <ShieldCheck size={18} />
           </span>
         </div>
@@ -72,7 +71,7 @@ export function SetupPage({ user }: { user: string }) {
         />
 
         {err && (
-          <p className="mb-3 text-sm text-red-600" role="alert">
+          <p className="mb-3 text-sm text-red-600 dark:text-red-400" role="alert">
             {err}
           </p>
         )}

@@ -6,16 +6,21 @@ export interface BootInfo {
   user: string | null;
 }
 
-export interface ServiceInfo {
-  id: string;
-  name: string;
-  description: string;
+export interface GroupMember {
   unit: string;
+  name: string;
   running: boolean;
 }
 
+export interface GroupInfo {
+  id: string;
+  name: string;
+  protected: boolean;
+  members: GroupMember[];
+}
+
 export interface ApiService {
-  services: ServiceInfo[];
+  groups: GroupInfo[];
 }
 
 async function j<T>(res: Response): Promise<T> {

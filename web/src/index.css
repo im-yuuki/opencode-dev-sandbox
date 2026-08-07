@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "@heroui/styles"; 
 
 :root {
   --devbox-accent: #4c6ef5;
@@ -8,6 +7,18 @@
   --devbox-muted: #6b7280;
   --devbox-line: #e5e7eb;
   --devbox-bg: #fafafa;
+}
+
+/* dark palette (system preference syncs the .dark class on <html>) */
+.dark {
+  --devbox-ink: #e4e6eb;
+  --devbox-muted: #9aa0aa;
+  --devbox-line: #2b2e36;
+  --devbox-bg: #101114;
+  --devbox-card: #191b21;
+  --devbox-card-hover: #20232b;
+  --devbox-chip: #23262e;
+  --devbox-chip-ink: #a8aeba;
 }
 
 html,
@@ -33,10 +44,17 @@ body {
     border-color 0.15s ease,
     box-shadow 0.15s ease;
 }
+.dark .devbox-card {
+  background: var(--devbox-card);
+}
 .devbox-card:hover {
   border-color: #d6d9e0;
   box-shadow: 0 6px 24px rgba(20, 24, 40, 0.06);
   transform: translateY(-2px);
+}
+.dark .devbox-card:hover {
+  border-color: #333742;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
 }
 .devbox-label {
   font-size: 0.68rem;
@@ -47,6 +65,15 @@ body {
 }
 .devbox-muted {
   color: var(--devbox-muted);
+}
+.devbox-chip {
+  border-radius: 0.5rem;
+  background: #f4f4f5;
+  color: #71717a;
+}
+.dark .devbox-chip {
+  background: var(--devbox-chip);
+  color: var(--devbox-chip-ink);
 }
 .dot-toggle {
   width: 8px;

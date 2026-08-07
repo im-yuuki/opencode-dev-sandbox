@@ -1,5 +1,5 @@
 # ============ stage 1: independent frontend build container ============
-FROM node:22-bookworm-slim AS frontend-build
+FROM node:lts-bookworm-slim AS frontend-build
 WORKDIR /ui
 COPY www/package.json www/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -28,12 +28,21 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
 
-# Add docker-ce + NodeSource 22 repos, then ONE apt refresh covers everything.
-# Node is installed from an apt repository (not a tarball); openchamber needs >= 22.
+# Add docker-ce + NodeSource + Google Chrome repos, then ONE apt refresh covers
+# everything.
+# Node LTS major is resolved at build time from setup_lts.x (latest LTS), not
+# pinned; the builder stage uses node:lts for the same reason.
+# openchamber needs >= 22.
+# Chrome's stable suite publishes amd64 and arm64, so it survives the multi-arch
+# CI build. `arch=` is pinned per stage arch anyway.
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/debian trixie stable" > /etc/apt/sources.list.d/docker.list \
+    && NODE_MAJOR="$(curl -fsSL https://deb.nodesource.com/setup_lts.x | sed -n 's/^NODE_VERSION="\([0-9][0-9]*\)\.x"$/\1/p')" \
+    && test -n "$NODE_MAJOR" \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
+    && echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
+    && curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         # node runtime (bundles npm) + python control plane
@@ -44,10 +53,13 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /
         locales tzdata sudo git vim htop jq unzip zip p7zip-full \
         build-essential cmake \
         openssl nginx \
-        # KDE Plasma (slim) + VNC + noVNC + websockify
-        plasma-desktop kwin-x11 dolphin konsole \
+        # KDE Plasma (slim): desktop, files, terminal, settings, text editor
+        plasma-desktop kwin-x11 dolphin konsole systemsettings kate \
         dbus-x11 x11-xserver-utils xauth \
+        # VNC + noVNC + websockify
         tigervnc-standalone-server novnc websockify \
+        # Google Chrome (its deps come from the package; fonts do not)
+        google-chrome-stable fonts-liberation \
         # Cockpit (web admin)
         cockpit cockpit-system cockpit-ws \
         # Docker CE (DinD)

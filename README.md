@@ -28,6 +28,13 @@ The dashboard toggles systemd services (stop/start/restart) and links tools; the
 VNC server itself uses `SecurityTypes=None` and binds only to loopback. The
 container's only published port is `8080`.
 
+Services are grouped by user-facing feature (`/api/v1/services` returns groups);
+a group action applies to all of its units, so paired features stay consistent —
+e.g. Desktop (Plasma) toggles `vnc.service` (Xvnc + Plasma) together with its
+`websockify.service` noVNC bridge. `nginx` (gateway) and the control plane are
+protected: the UI cannot stop them, and the API rejects it with 403, because
+shutting the gateway/auth down locks everyone out of the box.
+
 ## Run manually
 
 ```bash
@@ -91,10 +98,11 @@ add TLS.
 - git, curl, wget, vim, htop, jq, zip/unzip, p7zip
 - build-essential (gcc/g++/make), cmake
 - python3 + pip + venv + `python3-pamela` (PAM backend)
-- Node.js 22 + npm (NodeSource apt repo)
+- Node.js latest LTS + npm (NodeSource apt repo, major resolved from `setup_lts.x` at build time)
 - docker-ce, docker-ce-cli, containerd, docker-compose-plugin
 - `opencode`, `openchamber`
-- KDE: plasma-desktop, kwin-x11, dolphin, konsole
+- KDE: plasma-desktop, kwin-x11, dolphin, konsole, systemsettings, kate
+- google-chrome-stable (Google's apt repo; amd64 + arm64)
 
 ## Services
 

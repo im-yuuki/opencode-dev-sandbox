@@ -21,16 +21,24 @@ HOST = os.environ.get("DEVBOX_BIND", "127.0.0.1")
 PORT = int(os.environ.get("DEVBOX_PORT", "3100"))
 SESSION_TTL = 60 * 60 * 12  # 12h
 
-# id -> (unit, human-readable name)
-SERVICES = {
-    "openchamber": ("openchamber.service", "OpenChamber"),
-    "desktop": ("vnc.service", "Desktop (VNC)"),
-    "novnc": ("websockify.service", "noVNC bridge"),
-    "terminal": ("ttyd.service", "Web terminal (ttyd)"),
-    "cockpit": ("cockpit.socket", "Cockpit"),
-    "nginx": ("nginx.service", "Web gateway"),
-    "docker": ("docker.service", "Docker daemon"),
+# Feature groups: id -> (name, [systemd units], protected)
+# Services the user cannot turn off (the gateway and the auth control plane)
+# are protected; toggling one would lock everyone out of the box.
+# Desktop = one feature: Xvnc + Plasma (vnc.service) toggled together with its
+# noVNC bridge (websockify.service) so the pair stays consistent.
+GROUPS = {
+    "desktop": (
+        "Desktop (Plasma)",
+        [("vnc.service", "Xvnc + Plasma"), ("websockify.service", "noVNC bridge")],
+        False,
+    ),
+    "terminal": ("Web terminal (ttyd)", [("ttyd.service", "ttyd")], False),
+    "openchamber": ("OpenChamber", [("openchamber.service", "opencode UI")], False),
+    "cockpit": ("Cockpit admin", [("cockpit.socket", "web admin")], False),
+    "docker": ("Docker (DinD)", [("docker.service", "nested daemon")], False),
+    "gateway": ("Web gateway (nginx)", [("nginx.service", "nginx")], True),
 }
+# Control plane itself is never listed/toggled (auth depends on it).
 ACTIONS = {"start", "stop", "restart"}
 
 sessions = {}
@@ -189,12 +197,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/v1/services":
             if not self._authed_user():
                 return self._send({"error": "unauthorized"}, 401)
-            svcs = []
-            for sid, (unit, name) in SERVICES.items():
-                svcs.append(
-                    {"id": sid, "name": name, "unit": unit, "running": is_active(unit)}
+            groups = []
+            for gid, (name, members, protected) in GROUPS.items():
+                groups.append(
+                    {
+                        "id": gid,
+                        "name": name,
+                        "protected": protected,
+                        "members": [
+                            {"unit": unit, "name": label, "running": is_active(unit)}
+                            for unit, label in members
+                        ],
+                    }
                 )
-            return self._send({"services": svcs})
+            return self._send({"groups": groups})
         return self._plain("not found", 404)
 
     def do_POST(self):
@@ -238,13 +254,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             rest = path[len("/api/v1/services/"):].split("/")
             if len(rest) != 2:
                 return self._send({"error": "bad request"}, 400)
-            sid, action = rest
-            if sid not in SERVICES or action not in ACTIONS:
+            gid, action = rest
+            if gid not in GROUPS or action not in ACTIONS:
                 return self._send({"error": "unknown service or action"}, 400)
-            unit = SERVICES[sid][0]
-            if not systemctl_action(unit, action):
-                return self._send({"error": f"systemctl {action} failed"}, 500)
-            return self._send({"id": sid, "running": is_active(unit)})
+            _, members, protected = GROUPS[gid]
+            if protected:
+                return self._send({"error": "protected service"}, 403)
+            for unit, _ in members:
+                if not systemctl_action(unit, action):
+                    return self._send(
+                        {"error": f"systemctl {action} {unit} failed"}, 500
+                    )
+            return self._send(
+                {
+                    "id": gid,
+                    "running": all(is_active(u) for u, _ in members),
+                }
+            )
 
         return self._plain("not found", 404)
 

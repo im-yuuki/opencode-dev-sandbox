@@ -1,27 +1,28 @@
-import { useState, type FormEvent } from "react";
-import { useLocation, useNavigate, Link } from "react-router-dom";
+import { useState, type SubmitEvent } from "react";
+import { useLocation, Link } from "react-router-dom";
 import { Input, Button } from "@heroui/react";
 import { KeyRound } from "lucide-react";
 import { api } from "../api";
 
 export function LoginPage() {
-  const nav = useNavigate();
   const loc = useLocation() as { state?: { from?: string } };
   const [pw, setPw] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: FormEvent) {
+  async function submit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setErr(null);
     setBusy(true);
     try {
       await api.login(pw);
-      nav(loc.state?.from || "/", { replace: true });
+      // Full reload: the auth gate caches boot state at mount, so a client-side
+      // nav would re-render with the stale unauthenticated gate and bounce back.
+      window.location.assign(`/ui${loc.state?.from || "/"}`);
     } catch (er) {
       const s = (er as { status?: number }).status;
       if (s === 409) {
-        nav("/setup", { replace: true });
+        window.location.assign("/ui/setup");
       } else {
         setErr((er as Error).message || "Invalid credentials");
       }
@@ -31,10 +32,10 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center px-4">
+    <div className="grid h-screen place-items-center px-4">
       <form onSubmit={submit} className="devbox-card w-full max-w-sm p-8">
         <div className="mb-1 flex items-center gap-2">
-          <span className="rounded-lg bg-zinc-100 p-2 text-zinc-500">
+          <span className="devbox-chip p-2">
             <KeyRound size={18} />
           </span>
         </div>
@@ -55,7 +56,7 @@ export function LoginPage() {
         />
 
         {err && (
-          <p className="mb-3 text-sm text-red-600" role="alert">
+          <p className="mb-3 text-sm text-red-600 dark:text-red-400" role="alert">
             {err}
           </p>
         )}

@@ -8,18 +8,19 @@ import {
   RefreshCw,
   Power,
   Box,
+  Lock,
   type LucideIcon,
 } from "lucide-react";
-import { api, type ServiceInfo } from "../api";
+import { api, type GroupInfo } from "../api";
 import { TOOLS } from "../tools";
 
-function useServices() {
-  const [services, setServices] = useState<ServiceInfo[]>([]);
+function useGroups() {
+  const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const refresh = useCallback(async () => {
     try {
       const r = await api.services();
-      setServices(r.services);
+      setGroups(r.groups);
     } catch {
       /* keep last state */
     }
@@ -29,12 +30,12 @@ function useServices() {
   }, [refresh]);
 
   const act = useCallback(
-    async (svc: ServiceInfo, action: "start" | "stop" | "restart") => {
-      setBusyId(svc.id);
+    async (g: GroupInfo, action: "start" | "stop" | "restart") => {
+      setBusyId(g.id);
       try {
-        await api.serviceAction(svc.id, action);
+        await api.serviceAction(g.id, action);
       } catch {
-        /* surface? keep UI stable */
+        /* keep UI stable */
       } finally {
         setBusyId(null);
         void refresh();
@@ -43,30 +44,35 @@ function useServices() {
     [refresh]
   );
 
-  return { services, busyId, act, refresh };
+  return { groups, busyId, act, refresh };
 }
 
-function ServiceCard({
-  svc,
+const groupRunning = (g: GroupInfo) => g.members.length > 0 && g.members.every((m) => m.running);
+
+function GroupCard({
+  g,
   busy,
   onAction,
 }: {
-  svc: ServiceInfo;
+  g: GroupInfo;
   busy: boolean;
   onAction: (a: "start" | "stop" | "restart") => void;
 }) {
+  const running = groupRunning(g);
+  const someOn = g.members.some((m) => m.running);
   return (
     <div className="devbox-card flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {g.protected ? (
+            <Lock size={14} className="devbox-muted" aria-label="protected" />
+          ) : (
             <span
-              className={`dot-toggle ${svc.running ? "bg-emerald-500" : "bg-zinc-300"}`}
-              aria-label={svc.running ? "running" : "stopped"}
+              className={`dot-toggle ${running ? "bg-emerald-500" : someOn ? "bg-amber-400" : "bg-zinc-300 dark:bg-zinc-600"}`}
+              aria-label={running ? "running" : "stopped"}
             />
-            <span className="text-sm font-medium">{svc.name}</span>
-          </div>
-          <div className="devbox-label mt-1">{svc.unit}</div>
+          )}
+          <span className="text-sm font-medium">{g.name}</span>
         </div>
         <Button
           isIconOnly
@@ -78,28 +84,45 @@ function ServiceCard({
           <RefreshCw size={14} />
         </Button>
       </div>
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          variant="solid"
-          color={svc.running ? "danger" : "primary"}
-          isDisabled={busy}
-          isLoading={busy}
-          onPress={() => onAction(svc.running ? "stop" : "start")}
-          className="flex-1"
-        >
-          {svc.running ? "Stop" : "Start"}
-        </Button>
-        <Button
-          size="sm"
-          variant="bordered"
-          isDisabled={busy || !svc.running}
-          onPress={() => onAction("restart")}
-          className="flex-1"
-        >
-          Restart
-        </Button>
-      </div>
+
+      <ul className="devbox-muted flex flex-col gap-1 text-xs">
+        {g.members.map((m) => (
+          <li key={m.unit} className="flex items-center gap-2">
+            <span
+              className={`dot-toggle ${m.running ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"}`}
+            />
+            <span className="font-mono">{m.unit}</span>
+            <span>{m.name}</span>
+          </li>
+        ))}
+      </ul>
+
+      {g.protected ? (
+        <p className="devbox-muted text-xs">always on · locks the whole box if stopped</p>
+      ) : (
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="solid"
+            color={running ? "danger" : "primary"}
+            isDisabled={busy}
+            isLoading={busy}
+            onPress={() => onAction(running ? "stop" : "start")}
+            className="flex-1"
+          >
+            {running ? "Stop" : "Start"}
+          </Button>
+          <Button
+            size="sm"
+            variant="bordered"
+            isDisabled={busy || !someOn}
+            onPress={() => onAction("restart")}
+            className="flex-1"
+          >
+            Restart
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -128,7 +151,7 @@ function ToolCard({
       className="devbox-card flex flex-col gap-3 p-5"
     >
       <div className="flex items-center gap-3">
-        <span className="rounded-lg bg-zinc-100 p-2 text-zinc-600">
+        <span className="devbox-chip p-2">
           <Icon size={18} />
         </span>
         <div>
@@ -165,14 +188,14 @@ function ToolCard({
 }
 
 export function Dashboard({ user }: { user: string }) {
-  const { services, busyId, act } = useServices();
+  const { groups, busyId, act } = useGroups();
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-10 border-b border-zinc-200/70 bg-[#fafafa]/85 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-zinc-200/70 bg-[#fafafa]/85 backdrop-blur dark:border-zinc-800 dark:bg-[#101114]/85">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2 text-sm font-semibold tracking-tight">
-            <Box size={16} className="text-zinc-500" />
+            <Box size={16} className="text-zinc-500 dark:text-zinc-400" />
             DevBox
           </div>
           <div className="flex items-center gap-3">
@@ -201,12 +224,17 @@ export function Dashboard({ user }: { user: string }) {
         </section>
 
         <section>
-          <div className="devbox-label mb-3">services · systemd</div>
+          <div className="devbox-label mb-3">services · grouped by feature</div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {services.map((s) => (
-              <ServiceCard key={s.id} svc={s} busy={busyId === s.id} onAction={(a) => void act(s, a)} />
+            {groups.map((g) => (
+              <GroupCard key={g.id} g={g} busy={busyId === g.id} onAction={(a) => void act(g, a)} />
             ))}
           </div>
+          <p className="devbox-muted mt-3 flex items-center gap-2 text-xs">
+            <Power size={12} />
+            A group acts on all of its units together, so paired features (e.g. the Plasma
+            desktop and its noVNC bridge) stay consistent.
+          </p>
         </section>
       </main>
     </div>
