@@ -11,8 +11,9 @@ WorkingDirectory=/workspace
 Environment=HOME=/workspace
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-EnvironmentFile=/etc/openchamber.env
-ExecStart=/usr/local/bin/openchamber serve --foreground --lan --port 3000 --ui-password '${OPENCHAMBER_UI_PASSWORD}'
+# Loopback only: nginx (port 8080) is the single external boundary and does
+# PAM auth. --lan would force UI authentication, which we deliberately skip.
+ExecStart=/usr/bin/openchamber serve --foreground --port 3000
 Restart=always
 RestartSec=5
 

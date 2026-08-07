@@ -3,7 +3,6 @@
 set -e
 
 WEB_USER="${WEB_USER:-user}"
-WEB_PASSWORD="${WEB_PASSWORD:-changeme}"
 
 # ---- ensure user + home ----
 id "$WEB_USER" >/dev/null 2>&1 || {
@@ -15,8 +14,8 @@ usermod -d /workspace "$WEB_USER" 2>/dev/null || true
 mkdir -p /workspace
 chown "$WEB_USER:$WEB_USER" /workspace
 
-# Unix password — Cockpit authenticates against PAM
-echo "$WEB_USER:$WEB_PASSWORD" | chpasswd
+# NOTE: no password is set here. The account is created locked and the user
+# sets their own password on first visit via the web UI (Linux PAM + chpasswd).
 
 # ---- seed /workspace skeleton (survives empty volume mount) ----
 # TigerVNC (Debian trixie) uses $HOME/.config/tigervnc; legacy ~/.vnc only
@@ -41,16 +40,6 @@ su -s /bin/bash "$WEB_USER" -c '
       > "$HOME/.config/powermanagementprofilesrc"
   fi
 '
-
-# ---- nginx basic-auth gate ----
-htpasswd -cb /etc/nginx/htpasswd "$WEB_USER" "$WEB_PASSWORD" >/dev/null 2>&1 || true
-chmod 644 /etc/nginx/htpasswd
-
-# ---- openchamber env ----
-cat > /etc/openchamber.env <<EOF
-OPENCHAMBER_UI_PASSWORD=$WEB_PASSWORD
-EOF
-chmod 600 /etc/openchamber.env
 
 # ---- cockpit.conf (proxy-aware, url root, any http origin) ----
 cat > /etc/cockpit/cockpit.conf <<EOF

@@ -6,7 +6,6 @@ IMAGE="${IMAGE:-devbox}"
 NAME="${NAME:-devbox}"
 PORT="${PORT:-8080}"
 WEB_USER="${WEB_USER:-user}"
-WEB_PASSWORD="${WEB_PASSWORD:-changeme}"
 VOLUME="${VOLUME:-devbox-workspace}"
 
 cmd="${1:-run}"
@@ -27,9 +26,9 @@ case "$cmd" in
       -v "${VOLUME}:/workspace" \
       --tmpfs /run --tmpfs /run/lock --tmpfs /tmp \
       -e "WEB_USER=${WEB_USER}" \
-      -e "WEB_PASSWORD=${WEB_PASSWORD}" \
       "$IMAGE"
-    echo "DevBox up  ->  http://localhost:${PORT}   (login: ${WEB_USER} / ${WEB_PASSWORD})"
+    echo "DevBox up  ->  http://localhost:${PORT}"
+    echo "First visit: set password at /ui/setup, then log in at /ui/login (user: ${WEB_USER})"
     ;;
   logs)
     docker logs -f "$NAME"

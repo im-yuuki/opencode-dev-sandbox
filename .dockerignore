@@ -1,5 +1,4 @@
-# Exclude from build context (nothing outside these is copied into the image
-# except explicit COPY lines, but keeping context small speeds builds).
+# Exclude from build context
 .git
 .github
 docs
@@ -9,3 +8,4 @@ docs
 .DS_Store
 node_modules
 **/node_modules
+www/dist
