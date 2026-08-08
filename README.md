@@ -11,29 +11,32 @@ reachable through a single HTTP port behind one PAM-backed login.
 ./scripts/run.sh run
 ```
 
-Open <http://localhost:8080/ui/> (8080 is `run.sh`'s default host port; override
-with `PORT=… ./scripts/run.sh run`). First visit: set the account password at
-`/ui/setup`, then log in at `/ui/login` (Linux PAM against the container account).
+Open <http://localhost:8080/launcher/> (8080 is `run.sh`'s default host port;
+override with `PORT=… ./scripts/run.sh run`). First visit: the login page shows
+the password-setup form directly (Linux PAM against the container account).
 
 | Path                  | Service               | Auth                          |
 | --------------------- | --------------------- | ----------------------------- |
-| `/ui/`                | login/setup/dashboard SPA | session cookie (PAM)       |
-| `/ui/embed/:tool`     | iframe view of a tool | session cookie                |
+| `/launcher/`          | login/dashboard SPA   | session cookie (PAM)          |
+| `/launcher/embed/:tool` | iframe view of a tool | session cookie              |
+| `/launcher/api/`      | control plane (PAM)   | session cookie                |
 | `/`                   | OpenChamber           | nginx auth_request (session)  |
 | `/vnc/`               | KDE desktop (noVNC)   | nginx auth_request            |
 | `/code/`              | VS Code web (code-server) | nginx auth_request         |
-| `/api/`               | control plane (PAM)   | session cookie                |
 
-The dashboard toggles supervised services (stop/start/restart) and links tools;
-the VNC server itself uses `SecurityTypes=None` and binds only to loopback. The
-container exposes a single port, `9080`, which you map to any host port.
+The control plane lives under `/launcher/api` (nginx strips the prefix; the
+backend keeps serving `/api/v1/*`) so OpenChamber keeps its own `/api`
+endpoints at the root. Legacy `/ui/…` bookmarks 301 to `/launcher/…`.
 
-Services are grouped by user-facing feature (`/api/v1/services` returns groups);
-a group action applies to all of its programs, so paired features stay consistent —
-e.g. Desktop (Plasma) toggles `vnc` (Xvnc + Plasma) together with its
-`websockify` noVNC bridge. `nginx` (gateway) and the control plane are
-protected: the UI cannot stop them, and the API rejects it with 403, because
-shutting the gateway/auth down locks everyone out of the box.
+The dashboard shows the four user-facing *applications* — **Agent** (always on),
+**Desktop**, **Code** and **Docker** — and toggles their supervised programs
+(`/launcher/api/v1/services` returns them as `apps`). A toggle applies to all of
+an app's programs, so paired features stay consistent — e.g. Desktop toggles
+`vnc` (Xvnc + Plasma) together with its `websockify` noVNC bridge. Everything
+except Agent starts stopped; **Launching an app persists it** (state file in
+`/workspace/.devbox/apps.json`), so it comes back after a container restart
+until you Stop it. `nginx` (gateway) and the control plane are always on and
+never listed: stopping the gateway locks everyone out of the box.
 
 ## Process model
 
@@ -68,8 +71,8 @@ port to an untrusted network.
 
 - uid 1000, home `/workspace`, shell `/bin/bash`
 - groups `sudo` (NOPASSWD via `/etc/sudoers.d/99-nopasswd`) and `docker`
-- created locked; password is chosen on first visit via `/ui/setup`
-  (PAM + `chpasswd`), which also seeds the session cookie
+- created locked; password is chosen on first visit: `/launcher/login` shows the
+  setup form inline (PAM + `chpasswd`), which also seeds the session cookie
 
 Get a shell:
 
@@ -116,16 +119,20 @@ docker compose version      # v2 plugin
 
 ## Services
 
-| Program       | Port           | Notes                                |
-| ------------- | -------------- | ------------------------------------ |
-| `docker`      | unix sock     | DinD (vfs storage driver)            |
-| `vnc`         | 5905           | Xvnc + Plasma (display :5), runs as `user` |
-| `websockify`  | 9103           | noVNC static + WS bridge → 5905      |
-| `openchamber` | 9100 (loopback) | no `--lan`; nginx PAM-gates it     |
-| `code-server` | 9101 (loopback) | VS Code web, routed `/code/`      |
-| `devbox-api`  | 9102 (loopback) | control plane: PAM, sessions, supervisor |
-| `nginx`       | 9080           | gateway; map any host port to it     |
-| `dbus`        | —              | system message bus (infrastructure)  |
+| Program       | App          | Port           | Notes                                |
+| ------------- | ------------ | -------------- | ------------------------------------ |
+| `openchamber` | Agent        | 9100 (loopback) | no `--lan`; nginx PAM-gates it; always on |
+| `vnc`         | Desktop      | 5905           | Xvnc + Plasma (display :5), runs as `user` |
+| `websockify`  | Desktop      | 9103           | noVNC static + WS bridge → 5905      |
+| `code-server` | Code         | 9101 (loopback) | VS Code web, routed `/code/`      |
+| `docker`      | Docker       | unix sock      | DinD (vfs storage driver)            |
+| `devbox-api`  | —            | 9102 (loopback) | control plane: PAM, sessions, supervisor, app restore |
+| `nginx`       | —            | 9080           | gateway; map any host port to it     |
+| `dbus`        | —            | —              | system message bus (infrastructure)  |
+
+Only `openchamber` autostarts (`autostart=true`). `vnc`, `websockify`,
+`code-server` and `docker` have `autostart=false`: they start when the dashboard
+launches them, and the control plane re-starts the persisted set on boot.
 
 Internal services sit on high ports (9100–9103, nginx 9080, VNC 5905) so a dev
 server you run inside the box (vite 5173, next/react 3000, spring 8080, …) never
@@ -145,6 +152,11 @@ docker logs -f devbox
 (`~/.config/tigervnc/xstartup`), KDE locker/power settings, and `~/.bashrc` if they are
 missing, so mounting an empty volume still gives a working desktop session.
 
+The dashboard's enabled applications survive restarts too: the control plane
+records them in `/workspace/.devbox/apps.json` and starts them again whenever it
+boots, so `docker restart` (or `run.sh`'s rm + run on the same volume) keeps
+your current set of apps running.
+
 ## Configuration
 
 | Build arg       | Default                         | Effect                          |
@@ -155,4 +167,6 @@ missing, so mounting an empty volume still gives a working desktop session.
 | --------- | ------- | --------------------- |
 | `WEB_USER`| `user`  | account name          |
 
-Screen size lives in `scripts/vnc-run.sh` (`-geometry 1600x1000`).
+noVNC defaults to *remote* resize (`etc/novnc/defaults.json`), so the VNC
+screen resolution follows the browser window; `-geometry 1600x1000` in
+`scripts/vnc-run.sh` is only the initial size before a client connects.

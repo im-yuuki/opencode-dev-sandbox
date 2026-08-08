@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router";
 import { buttonVariants } from "@heroui/react";
-import { ArrowLeft, ExternalLink, Frame } from "lucide-react";
+import { ArrowLeft, Frame } from "lucide-react";
 import { toolById } from "../tools";
 import { ErrorPage } from "./Error";
 
@@ -28,15 +28,6 @@ export function Embed() {
           <span className="text-sm font-medium">{def.name}</span>
           <span className="devbox-label hidden sm:inline">{def.url}</span>
         </div>
-        <a
-          href={def.url}
-          target="_blank"
-          rel="noopener"
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          <ExternalLink size={13} />
-          New tab
-        </a>
       </header>
       <iframe
         src={def.url}

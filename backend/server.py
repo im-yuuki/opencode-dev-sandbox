@@ -21,23 +21,28 @@ HOST = os.environ.get("DEVBOX_BIND", "127.0.0.1")
 PORT = int(os.environ.get("DEVBOX_PORT", "9102"))
 SESSION_TTL = 60 * 60 * 12  # 12h
 
-# Feature groups: id -> (name, [supervisor programs], protected)
-# Services the user cannot turn off (the gateway and the auth control plane)
-# are protected; toggling one would lock everyone out of the box.
+# Where the dashboard persists which applications the user turned on, so they
+# come back after a container restart (the volume survives both `docker stop`
+# and `run.sh`'s rm + run; a bare container filesystem would not).
+STATE_DIR = "/workspace/.devbox"
+STATE_FILE = os.path.join(STATE_DIR, "apps.json")
+
+# Applications shown on the dashboard. id -> (display name, [supervisor
+# programs]). nginx (gateway) and dbus stay supervised but are never listed:
+# the gateway cannot be toggled (stopping it locks everyone out) and dbus is
+# session infrastructure. "agent" is the core app: always autostarted, never
+# offered Launch/Stop controls.
 # Desktop = one feature: Xvnc + Plasma (vnc) toggled together with its
 # noVNC bridge (websockify) so the pair stays consistent.
-GROUPS = {
+APPS = {
+    "agent": ("Agent", [("openchamber", "OpenCode UI + terminal")]),
     "desktop": (
-        "Desktop (Plasma)",
+        "Desktop",
         [("vnc", "Xvnc + Plasma"), ("websockify", "noVNC bridge")],
-        False,
     ),
-    "openchamber": ("OpenChamber", [("openchamber", "opencode UI")], False),
-    "code": ("VS Code", [("code-server", "code-server web")], False),
-    "docker": ("Docker (DinD)", [("docker", "nested daemon")], False),
-    "gateway": ("Web gateway (nginx)", [("nginx", "nginx")], True),
+    "code": ("Code", [("code-server", "VS Code web")]),
+    "docker": ("Docker", [("docker", "nested daemon (DinD)")]),
 }
-# Control plane itself is never listed/toggled (auth depends on it).
 ACTIONS = {"start", "stop", "restart"}
 
 sessions = {}
@@ -134,6 +139,33 @@ def svc_action(prog: str, action: str) -> bool:
     return r.returncode == 0
 
 
+# ---------------- app enablement (survives container restart) ----------------
+def load_enabled() -> set:
+    """Ids of applications the user has turned on. Missing/corrupt -> empty."""
+    try:
+        with open(STATE_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return set()
+    return {a for a in data.get("enabled", []) if a in APPS}
+
+
+def save_enabled(enabled: set) -> None:
+    try:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"enabled": sorted(enabled)}, f, indent=2)
+    except Exception:
+        pass
+
+
+def restore_enabled() -> None:
+    """Start every app that was enabled before the container restarted."""
+    for app_id in load_enabled():
+        for prog, _ in APPS[app_id][1]:
+            svc_action(prog, "start")
+
+
 # ---------------- http ----------------
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -207,20 +239,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/v1/services":
             if not self._authed_user():
                 return self._send({"error": "unauthorized"}, 401)
-            groups = []
-            for gid, (name, members, protected) in GROUPS.items():
-                groups.append(
-                    {
-                        "id": gid,
-                        "name": name,
-                        "protected": protected,
-                        "members": [
-                            {"unit": prog, "name": label, "running": is_active(prog)}
-                            for prog, label in members
-                        ],
-                    }
-                )
-            return self._send({"groups": groups})
+            return self._send(
+                {
+                    "apps": [
+                        {
+                            "id": app_id,
+                            "name": name,
+                            "running": all(is_active(p) for p, _ in members),
+                            "members": [
+                                {"unit": prog, "name": label, "running": is_active(prog)}
+                                for prog, label in members
+                            ],
+                        }
+                        for app_id, (name, members) in APPS.items()
+                    ]
+                }
+            )
         return self._plain("not found", 404)
 
     def do_POST(self):
@@ -264,12 +298,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             rest = path[len("/api/v1/services/"):].split("/")
             if len(rest) != 2:
                 return self._send({"error": "bad request"}, 400)
-            gid, action = rest
-            if gid not in GROUPS or action not in ACTIONS:
-                return self._send({"error": "unknown service or action"}, 400)
-            _, members, protected = GROUPS[gid]
-            if protected:
-                return self._send({"error": "protected service"}, 403)
+            app_id, action = rest
+            if app_id not in APPS or action not in ACTIONS:
+                return self._send({"error": "unknown application or action"}, 400)
+            members = APPS[app_id][1]
+            # Persist enablement so Launch survives a container restart; stop
+            # clears it. restart leaves the saved state untouched.
+            enabled = load_enabled()
+            if action == "start":
+                enabled.add(app_id)
+                save_enabled(enabled)
+            elif action == "stop":
+                enabled.discard(app_id)
+                save_enabled(enabled)
             for prog, _ in members:
                 if not svc_action(prog, action):
                     return self._send(
@@ -277,7 +318,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     )
             return self._send(
                 {
-                    "id": gid,
+                    "id": app_id,
                     "running": all(is_active(p) for p, _ in members),
                 }
             )
@@ -286,6 +327,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
+    # Bring back applications that were enabled before the container restarted.
+    # Agent and infrastructure (nginx, dbus) autostart via supervisord instead.
+    restore_enabled()
     server = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"devbox api listening on {HOST}:{PORT} for user '{USER}'", flush=True)
     server.serve_forever()

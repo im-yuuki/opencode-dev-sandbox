@@ -1,5 +1,5 @@
 # ============ stage 1: independent frontend build container ============
-FROM node:lts-bookworm-slim AS frontend-build
+FROM node:lts-trixie-slim AS frontend-build
 WORKDIR /ui
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -103,9 +103,12 @@ RUN mkdir -p /workspace
 RUN chown user:user /workspace
 
 # ---- app + configs ----
-COPY --from=frontend-build /ui/dist /var/www/ui
+COPY --from=frontend-build /ui/dist /var/www/launcher
 COPY backend/ /opt/devbox/backend/
 COPY etc/ /etc/
+# noVNC reads ./defaults.json at page load; make the VNC session follow the
+# browser window (remote resize) by default instead of the fixed -geometry.
+COPY etc/novnc/defaults.json /usr/share/novnc/defaults.json
 COPY xstartup /usr/share/devbox/xstartup
 COPY scripts/entrypoint.sh /usr/local/sbin/entrypoint.sh
 COPY scripts/vnc-run.sh /usr/local/sbin/vnc-run.sh

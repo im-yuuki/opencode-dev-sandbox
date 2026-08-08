@@ -5,8 +5,8 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  // Served by nginx under /ui/ behind the PAM gate.
-  base: '/ui/',
+  // Served by nginx under /launcher/ behind the PAM gate.
+  base: '/launcher/',
   plugins: [
     react(),
     babel({ presets: [reactCompilerPreset()] }),

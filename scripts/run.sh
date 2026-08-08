@@ -23,8 +23,8 @@ case "$cmd" in
       -v "${VOLUME}:/workspace" \
       --tmpfs /tmp \
       "$IMAGE"
-    echo "DevBox up  ->  http://localhost:${PORT}"
-    echo "First visit: set password at /ui/setup, then log in at /ui/login (user: user)"
+    echo "DevBox up  ->  http://localhost:${PORT}/launcher/"
+    echo "First visit: set your password on the login page (user: user)"
     ;;
   logs)
     docker logs -f "$NAME"
