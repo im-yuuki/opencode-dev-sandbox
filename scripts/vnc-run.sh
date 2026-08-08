@@ -12,5 +12,6 @@ rm -f /tmp/.X5-lock /tmp/.X11-unix/X5 2>/dev/null || true
 
 exec /usr/bin/vncserver -fg :5 \
   -geometry 1600x1000 -depth 24 \
+  -AcceptSetDesktopSize \
   -SecurityTypes None -localhost yes \
   -xstartup /workspace/.config/tigervnc/xstartup

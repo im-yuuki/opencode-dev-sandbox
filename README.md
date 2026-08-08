@@ -223,6 +223,8 @@ volume) keeps your current set of apps running.
 | `WEB_USER`| `user`  | account name          |
 | `TLS_SAN` | —       | extra SANs for the generated certificate, e.g. `DNS:devbox.lan,IP:192.168.1.10`. Only read when the certificate does not exist yet. |
 
-noVNC defaults to *remote* resize (`etc/novnc/defaults.json`), so the VNC
-screen resolution follows the browser window; `-geometry 1600x1000` in
-`scripts/vnc-run.sh` is only the initial size before a client connects.
+noVNC forces *remote* resize (`etc/novnc/mandatory.json`) and Xvnc explicitly
+accepts `SetDesktopSize`, so the VNC resolution follows the browser window
+regardless of CPU architecture, origin-specific browser settings or cached
+defaults. `-geometry 1600x1000` in `scripts/vnc-run.sh` is only the initial size
+before a client connects.

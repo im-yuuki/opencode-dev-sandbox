@@ -83,6 +83,10 @@ COPY --from=frontend-build /ui/dist /var/www/launcher
 COPY backend/ /opt/devbox/backend/
 COPY etc/ /etc/
 COPY etc/novnc/defaults.json /usr/share/novnc/defaults.json
+COPY etc/novnc/mandatory.json /usr/share/novnc/mandatory.json
+# Existing remote origins may have cached Debian's stock empty mandatory.json.
+# Give the deployment policy a new URL once, then nginx marks it no-store.
+RUN sed -i "s|fetch('./mandatory.json')|fetch('./mandatory.json?v=devbox-resize-v2')|" /usr/share/novnc/vnc.html /usr/share/novnc/vnc_auto.html && grep -q "mandatory.json?v=devbox-resize-v2" /usr/share/novnc/vnc.html && grep -q "mandatory.json?v=devbox-resize-v2" /usr/share/novnc/vnc_auto.html
 COPY xstartup /usr/share/devbox/xstartup
 COPY scripts/entrypoint.sh /usr/local/sbin/entrypoint.sh
 COPY scripts/vnc-run.sh /usr/local/sbin/vnc-run.sh
