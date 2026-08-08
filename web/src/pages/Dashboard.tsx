@@ -199,9 +199,7 @@ function AppRow({
               )}
             </Button>
           )}
-          {/* Only apps that actually serve a web UI get this; Docker has no
-              `url`, so it renders nothing rather than a permanently dead
-              button. */}
+          {/* Only apps that actually serve a web UI get an Open button. */}
           {meta?.url ? (
             <a
               href={meta.url}

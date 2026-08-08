@@ -52,7 +52,6 @@ APPS = {
         [("vnc", "Xvnc + Plasma"), ("websockify", "noVNC bridge")],
     ),
     "code": ("Code", [("code-server", "VS Code web")]),
-    "docker": ("Docker", [("docker", "nested daemon (DinD)")]),
 }
 ACTIONS = {"start", "stop", "restart"}
 

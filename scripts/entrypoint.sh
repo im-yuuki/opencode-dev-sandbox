@@ -8,7 +8,7 @@ WEB_USER=user
 
 # ---- ensure user + home ----
 id "$WEB_USER" >/dev/null 2>&1 || {
-  useradd -m -u 1000 -G docker,sudo -s /bin/bash "$WEB_USER"
+  useradd -m -u 1000 -G sudo -s /bin/bash "$WEB_USER"
   echo "$WEB_USER ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/99-nopasswd
   chmod 0440 /etc/sudoers.d/99-nopasswd
 }
@@ -83,5 +83,18 @@ chmod 700 /run/user/1000
 mkdir -p /run/dbus
 chown messagebus:messagebus /run/dbus
 mkdir -p /var/run/nginx
+
+# ---- Chrome sandbox capability ----
+# Docker's default seccomp profile blocks creation of nested user namespaces.
+# Probe rather than guess so Chrome keeps its renderer sandbox when supported.
+mkdir -p /run/devbox
+if su -s /bin/bash "$WEB_USER" -c 'unshare -Ur true' >/dev/null 2>&1; then
+  printf 'userns=yes\n' > /run/devbox/caps
+  echo 'devbox: user namespaces available; Chrome sandbox enabled'
+else
+  printf 'userns=no\n' > /run/devbox/caps
+  echo 'devbox: user namespaces unavailable; Chrome will use --no-sandbox'
+fi
+chmod 644 /run/devbox/caps
 
 exec /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf "$@"

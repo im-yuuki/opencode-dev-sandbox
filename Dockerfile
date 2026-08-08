@@ -17,8 +17,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
 
 # ============ third-party repositories ============
-RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
-RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/debian trixie stable" > /etc/apt/sources.list.d/docker.list
 RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | sed -n 's/^NODE_VERSION="\([0-9][0-9]*\)\.x"$/\1/p' > /tmp/node-major
 RUN test -s /tmp/node-major
@@ -53,9 +51,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends google-chrome-s
 # ============ fonts ============
 RUN apt-get update && apt-get install -y --no-install-recommends fonts-liberation fonts-dejavu-core fonts-noto-core && rm -rf /var/lib/apt/lists/*
 
-# ============ Docker CE / DinD ============
-RUN apt-get update && apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-compose-plugin && rm -rf /var/lib/apt/lists/*
-
 # ============ OpenCode ============
 RUN npm install -g opencode-ai
 
@@ -71,7 +66,7 @@ ARG CODE_SERVER_VERSION=4.131.0
 RUN curl -fsSL -o /tmp/code-server.tar.gz "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-$(dpkg --print-architecture).tar.gz" && tar -xzf /tmp/code-server.tar.gz -C /usr/local/lib && mv "/usr/local/lib/code-server-${CODE_SERVER_VERSION}-linux-$(dpkg --print-architecture)" /usr/local/lib/code-server && ln -s /usr/local/lib/code-server/bin/code-server /usr/local/bin/code-server && rm /tmp/code-server.tar.gz
 
 # ============ user account ============
-RUN useradd -m -u 1000 -G docker,sudo -s /bin/bash user
+RUN useradd -m -u 1000 -G sudo -s /bin/bash user
 RUN usermod -d /workspace user
 RUN printf 'user ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/99-nopasswd
 RUN chmod 0440 /etc/sudoers.d/99-nopasswd
@@ -90,17 +85,14 @@ RUN sed -i "s|fetch('./mandatory.json')|fetch('./mandatory.json?v=devbox-resize-
 COPY xstartup /usr/share/devbox/xstartup
 COPY scripts/entrypoint.sh /usr/local/sbin/entrypoint.sh
 COPY scripts/vnc-run.sh /usr/local/sbin/vnc-run.sh
-RUN chmod +x /usr/local/sbin/entrypoint.sh /usr/local/sbin/vnc-run.sh
+COPY scripts/google-chrome-stable /usr/local/bin/google-chrome-stable
+RUN chmod +x /usr/local/sbin/entrypoint.sh /usr/local/sbin/vnc-run.sh /usr/local/bin/google-chrome-stable
+RUN sed -i 's|Exec=/usr/bin/google-chrome-stable|Exec=/usr/local/bin/google-chrome-stable|g' /usr/share/applications/google-chrome.desktop
 RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
 
-# ============ Docker runtime ============
-RUN mkdir -p /etc/docker
-RUN printf '{"storage-driver":"vfs"}\n' > /etc/docker/daemon.json
-
 # ============ container ============
-STOPSIGNAL SIGTERM
 EXPOSE 9080
 VOLUME ["/workspace"]
-STOPSIGNAL SIGRTMIN+3
+STOPSIGNAL SIGTERM
 WORKDIR /workspace
 CMD ["/usr/local/sbin/entrypoint.sh"]

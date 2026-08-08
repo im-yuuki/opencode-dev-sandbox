@@ -1,7 +1,7 @@
 # OpenCode Dev Sandbox
 
 A full Linux dev box in one container, reachable from a browser. Coding agent, VS Code, a KDE
-desktop, a file manager and Docker — one HTTPS port, one login.
+desktop and a file manager — one HTTPS port, one login.
 
 <p align="center">
   <img src="https://cdn.simpleicons.org/debian/A81D33" height="34" alt="Debian" />
@@ -23,10 +23,10 @@ desktop, a file manager and Docker — one HTTPS port, one login.
 
 ```bash
 docker run -d --name devbox \
-  --privileged --security-opt seccomp=unconfined \
+  --security-opt seccomp=unconfined \
   -p 8080:9080 \
   -v devbox-workspace:/workspace \
-  --tmpfs /tmp \
+  --tmpfs /tmp --shm-size=1g \
   ghcr.io/im-yuuki/opencode-dev-sandbox:latest
 ```
 
@@ -34,10 +34,10 @@ Docker Hub mirror:
 
 ```bash
 docker run -d --name devbox \
-  --privileged --security-opt seccomp=unconfined \
+  --security-opt seccomp=unconfined \
   -p 8080:9080 \
   -v devbox-workspace:/workspace \
-  --tmpfs /tmp \
+  --tmpfs /tmp --shm-size=1g \
   imyuuki/opencode-dev-sandbox:latest
 ```
 
@@ -48,8 +48,10 @@ Then open **<https://localhost:8080/launcher/>**.
 - Any free host port works: `-p 12345:9080`.
 - `linux/amd64` and `linux/arm64` images are published.
 
-> **Security:** the container runs `--privileged` and shares the host kernel. Run trusted
-> workloads only and never publish the port to an untrusted network.
+> **Security:** this image does not include a container daemon, mount the host Docker socket, or
+> request unrestricted host privileges. The seccomp exception allows Chrome to create its renderer
+> sandbox. It widens the available syscall surface, so never publish the port to an untrusted
+> network. See [Chrome sandbox](#chrome-sandbox) below.
 
 Get a shell:
 
@@ -70,7 +72,6 @@ docker exec -it devbox bash -lc 'su - user'
 - **Persistent workspace.** `/workspace` is a volume: code, settings, desktop session and the
   TLS certificate survive container rebuilds.
 - **Real desktop.** KDE Plasma over noVNC, resolution follows your browser window.
-- **Docker inside.** Nested `dockerd` with Compose v2, usable without `sudo`.
 - **Batteries included.** Node.js LTS, Python, a C/C++ toolchain, Git and Chrome preinstalled.
 - **Multi-arch.** Runs natively on x86 and ARM (Apple Silicon, Raspberry Pi–class servers).
 
@@ -82,7 +83,6 @@ docker exec -it devbox bash -lc 'su - user'
 | **Code** | VS Code in the browser, rooted at `/workspace`. |
 | **Desktop** | KDE Plasma session streamed to the browser. |
 | **Files** | Upload, download, archive, edit, move files. |
-| **Docker** | Nested Docker daemon for building and running containers. |
 
 ---
 
@@ -114,7 +114,6 @@ docker exec -it devbox bash -lc 'su - user'
 | <img src="https://cdn.simpleicons.org/kde/1D99F3" height="20" /> | [KDE Plasma 6](https://kde.org/plasma-desktop/) | Desktop, Dolphin, Konsole, Kate, System Settings |
 | <img src="https://cdn.simpleicons.org/nodedotjs/5FA04E" height="20" /> | [Cloud Commander](https://cloudcmd.io) | Web file manager |
 | <img src="https://cdn.simpleicons.org/googlechrome/4285F4" height="20" /> | [Google Chrome](https://www.google.com/chrome/) | Browser on the desktop, with its own sandbox |
-| <img src="https://cdn.simpleicons.org/docker/2496ED" height="20" /> | [Docker CE + Compose](https://docs.docker.com/) | Docker-in-Docker |
 | <img src="https://cdn.simpleicons.org/xdotorg/F28834" height="20" /> | [TigerVNC + noVNC](https://novnc.com) | Desktop streaming |
 | <img src="https://cdn.simpleicons.org/nginx/009639" height="20" /> | [nginx](https://nginx.org) | HTTPS gateway |
 
@@ -136,13 +135,6 @@ docker exec -it devbox bash -lc 'su - user'
 
 ## Usage notes
 
-### Docker inside the box
-
-```bash
-docker run --rm hello-world
-docker compose version
-```
-
 ### Custom hostname or LAN address in the certificate
 
 Set extra SANs on first boot:
@@ -162,15 +154,30 @@ Only read when the certificate does not exist yet. To regenerate, delete
 | `WEB_USER` | `user` | Account name inside the container |
 | `TLS_SAN` | — | Extra SANs for the generated certificate |
 
-### Chrome will not start
+### Chrome sandbox
 
-`--security-opt seccomp=unconfined` is required — Chrome's sandbox needs
-`clone(CLONE_NEWUSER)`, which Docker's default seccomp profile blocks. If it still fails, the
-host disallows unprivileged user namespaces:
+Chrome's renderer sandbox creates an unprivileged user namespace. Docker's default seccomp
+profile blocks that operation, so the quick start uses `seccomp=unconfined`. The container still
+receives no host devices, host namespaces, host socket, or host-level capabilities.
+
+At boot the image probes `unshare -Ur`. If it is unavailable, Chrome starts with `--no-sandbox`
+rather than failing silently. This reduces browser defense in depth; use the quick-start setting
+when the desktop browser is exposed to untrusted web content.
+
+If the probe fails despite the seccomp setting, the host may disallow unprivileged user
+namespaces:
 
 ```bash
 sudo sysctl -w kernel.unprivileged_userns_clone=1
 ```
+
+Recent Ubuntu hosts can additionally restrict unprivileged user namespaces through AppArmor:
+
+```bash
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+```
+
+These are host-wide settings; evaluate them against your threat model before changing them.
 
 ### Ports
 

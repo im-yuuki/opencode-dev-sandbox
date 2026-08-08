@@ -1,0 +1,18 @@
+#!/bin/bash
+# Keep Chrome's renderer sandbox whenever nested user namespaces are available.
+set -e
+
+args=("$@")
+if ! grep -qx 'userns=yes' /run/devbox/caps 2>/dev/null; then
+  echo 'devbox: warning: Chrome sandbox unavailable because nested user namespaces are blocked' >&2
+  args+=(--no-sandbox)
+fi
+
+# Docker defaults /dev/shm to 64 MiB. Avoid browser crashes unless the caller
+# explicitly allocated a sufficiently large shared-memory mount.
+shm_kb=$(df -Pk /dev/shm 2>/dev/null | tail -1 | awk '{print $2}')
+if [ -z "$shm_kb" ] || [ "$shm_kb" -lt 262144 ]; then
+  args+=(--disable-dev-shm-usage)
+fi
+
+exec /usr/bin/google-chrome-stable "${args[@]}"

@@ -1,10 +1,10 @@
 import type { LucideIcon } from "lucide-react";
-import { Braces, Cable, Container, FolderOpen, MonitorPlay } from "lucide-react";
+import { Braces, Cable, FolderOpen, MonitorPlay } from "lucide-react";
 
 // Application metadata, keyed by the control plane's app ids. "agent" is the
 // always-on core: the dashboard gives it no Stop control, but it does get
 // "Open in New Tab" since it is always reachable. `url` is where that link
-// goes; apps without one (Docker: no web UI) get no link at all.
+// goes; apps without one get no link at all.
 // `embed` marks apps safe to render inside the launcher iframe.
 export interface ToolDef {
   id: string;
@@ -46,12 +46,6 @@ export const TOOLS: Record<string, ToolDef> = {
     icon: Braces,
     url: "/code/",
     embed: true,
-  },
-  docker: {
-    id: "docker",
-    name: "Docker",
-    description: "Nested docker-in-docker daemon.",
-    icon: Container,
   },
 };
 
