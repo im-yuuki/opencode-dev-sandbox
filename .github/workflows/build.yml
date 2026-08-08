@@ -4,6 +4,7 @@ on:
   # Every branch push builds its own image variant; version tags (v*) and
   # workflow_dispatch (any branch) too.
   push:
+    branches: ["main", "master"]
     tags: ['v*']
   pull_request:
   workflow_dispatch:

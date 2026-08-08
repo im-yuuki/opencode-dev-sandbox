@@ -147,10 +147,7 @@ function AppRow({
           {app.members.map((m) => (
             <div key={m.unit} className="flex min-w-0 items-center gap-2">
               <StatusChip running={m.running} someOn={false} />
-              <Typography.Code className="truncate">{m.unit}</Typography.Code>
-              <Typography type="body-xs" color="muted" truncate>
-                {m.name}
-              </Typography>
+              <Typography.Code>{m.unit}</Typography.Code>
             </div>
           ))}
         </Card.Content>
