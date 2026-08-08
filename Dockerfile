@@ -63,15 +63,6 @@ RUN apt-get install -y --no-install-recommends \
 
 RUN rm -rf /var/lib/apt/lists/*
 
-# ---- ttyd (web terminal) - not packaged in trixie, use static binary ----
-# Release assets are named after `uname -m` (ttyd.x86_64, ttyd.aarch64), so no
-# arch mapping is needed; an unsupported arch simply 404s and fails the build.
-RUN curl -fsSL -o /usr/local/bin/ttyd https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.$(uname -m)
-
-RUN chmod +x /usr/local/bin/ttyd
-
-RUN ttyd --version
-
 # ---- opencode + openchamber ----
 RUN npm install -g opencode-ai
 

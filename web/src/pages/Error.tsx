@@ -101,7 +101,7 @@ export function ErrorPage({ code: fixed }: { code?: number } = {}) {
   const [params] = useSearchParams();
   const code = fixed ?? normalize(params.get("code"), 500);
   const { title, detail, icon: Icon } = classify(code);
-  // nginx bounces here from the proxied tools (/vnc/, /terminal/, …), which are
+  // nginx bounces here from the proxied tools (/vnc/, /, …), which are
   // outside the SPA's basename, so a plain <Link> could not send the user back.
   // `from` carries that address to the login form, which does a full navigation.
   const from = readFrom(window.location.search);

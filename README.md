@@ -20,7 +20,6 @@ Open <http://localhost:8080/ui/>. First visit: set the account password at
 | `/ui/embed/:tool`     | iframe view of a tool | session cookie                |
 | `/`                   | OpenChamber           | nginx auth_request (session)  |
 | `/vnc/`               | KDE desktop (noVNC)   | nginx auth_request            |
-| `/terminal/`          | web terminal (ttyd)   | nginx auth_request            |
 | `/api/`               | control plane (PAM)   | session cookie                |
 
 The dashboard toggles supervised services (stop/start/restart) and links tools;
@@ -116,7 +115,6 @@ docker compose version      # v2 plugin
 | `vnc`         | 5901           | Xvnc + Plasma, runs as `user`        |
 | `websockify`  | 6080           | noVNC static + WS bridge → 5901      |
 | `openchamber` | 3000 (loopback) | no `--lan`; nginx PAM-gates it     |
-| `ttyd`        | 7681 (loopback) | web terminal, routed `/terminal/`  |
 | `devbox-api`  | 3100 (loopback) | control plane: PAM, sessions, supervisor |
 | `nginx`       | 8080           | published gateway                    |
 | `dbus`        | —              | system message bus (infrastructure)  |

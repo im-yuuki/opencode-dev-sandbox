@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Cable, MonitorPlay, Terminal } from "lucide-react";
+import { Cable, MonitorPlay } from "lucide-react";
 
 export interface ToolDef {
   id: string;
@@ -14,7 +14,7 @@ export const TOOLS: ToolDef[] = [
   {
     id: "studio",
     name: "OpenChamber",
-    description: "OpenCode sessions, diffs, git and the code editor.",
+    description: "OpenCode sessions, diffs, git, terminal and the code editor.",
     icon: Cable,
     url: "/",
     embed: false,
@@ -25,14 +25,6 @@ export const TOOLS: ToolDef[] = [
     description: "KDE Plasma session via noVNC.",
     icon: MonitorPlay,
     url: "/vnc/vnc.html?path=vnc/websockify&resize=remote",
-    embed: true,
-  },
-  {
-    id: "terminal",
-    name: "Terminal",
-    description: "Dedicated web shell (ttyd) as your user.",
-    icon: Terminal,
-    url: "/terminal/",
     embed: true,
   },
 ];
