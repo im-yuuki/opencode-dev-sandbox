@@ -23,7 +23,8 @@ case "$cmd" in
       -v "${VOLUME}:/workspace" \
       --tmpfs /tmp \
       "$IMAGE"
-    echo "DevBox up  ->  http://localhost:${PORT}/launcher/"
+    echo "DevBox up  ->  https://localhost:${PORT}/launcher/"
+    echo "Certificate is self-signed: expect a browser warning on first visit."
     echo "First visit: set your password on the login page (user: user)"
     ;;
   logs)

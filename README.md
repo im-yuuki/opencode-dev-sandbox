@@ -2,7 +2,7 @@
 
 Debian Trixie container with supervisord as PID1 (no systemd), KDE Plasma 6 over
 noVNC, VS Code web, OpenChamber/opencode, and Docker-in-Docker. Everything
-reachable through a single HTTP port behind one PAM-backed login.
+reachable through a single HTTPS port behind one PAM-backed login.
 
 ## Quick start
 
@@ -11,9 +11,11 @@ reachable through a single HTTP port behind one PAM-backed login.
 ./scripts/run.sh run
 ```
 
-Open <http://localhost:8080/launcher/> (8080 is `run.sh`'s default host port;
-override with `PORT=… ./scripts/run.sh run`). First visit: the login page shows
-the password-setup form directly (Linux PAM against the container account).
+Open <https://localhost:8080/launcher/> (8080 is `run.sh`'s default host port;
+override with `PORT=… ./scripts/run.sh run`). The gateway is HTTPS with a
+self-signed certificate generated on first boot, so the browser shows a warning
+once — accept it. First visit: the login page shows the password-setup form
+directly (Linux PAM against the container account).
 
 | Path                  | Service               | Auth                          |
 | --------------------- | --------------------- | ----------------------------- |
@@ -60,6 +62,35 @@ docker run -d --name devbox \
 
 `-p` only chooses the published host port; nothing inside the box redirects to
 port 9080, so any host port works (`-p 12345:9080`).
+
+## TLS
+
+The gateway serves HTTPS only on 9080. On first boot `scripts/entrypoint.sh`
+generates a self-signed RSA-2048 certificate (10 years, `CN=devbox`) into
+`/workspace/.devbox/tls/{devbox.crt,devbox.key}` and nginx picks it up from
+there. Because it lives on the `/workspace` volume, the pair — and the trust
+exception you granted in the browser — survives `docker rm` and image rebuilds.
+The key is root-owned `0600`.
+
+Plain HTTP to the port gets nginx's 497, which is redirected to the same URL
+over https, so an `http://…` bookmark still lands.
+
+Default SANs cover `localhost`, the container hostname, `127.0.0.1` and `::1`.
+To reach the box by another name or LAN address, add SANs at first boot and let
+the cert regenerate:
+
+```bash
+docker run -d --name devbox --privileged -p 8080:9080 \
+  -e TLS_SAN="DNS:devbox.lan,IP:192.168.1.10" \
+  -v devbox-workspace:/workspace --tmpfs /tmp devbox
+```
+
+`TLS_SAN` is only read when a certificate is generated. To replace an existing
+one, delete `/workspace/.devbox/tls` and restart the container. Bring your own
+certificate by dropping `devbox.crt` / `devbox.key` in that directory instead;
+the entrypoint leaves non-empty files alone. It is self-signed, so it stops
+passive sniffing on the wire but proves nothing about identity — do not treat it
+as a reason to expose the port more widely.
 
 `--privileged` is needed only for the nested `dockerd` (it creates containers
 and manages iptables); the control plane and all other services run
@@ -127,7 +158,7 @@ docker compose version      # v2 plugin
 | `code-server` | Code         | 9101 (loopback) | VS Code web, routed `/code/`      |
 | `docker`      | Docker       | unix sock      | DinD (vfs storage driver)            |
 | `devbox-api`  | —            | 9102 (loopback) | control plane: PAM, sessions, supervisor, app restore |
-| `nginx`       | —            | 9080           | gateway; map any host port to it     |
+| `nginx`       | —            | 9080 (https)   | gateway; map any host port to it     |
 | `dbus`        | —            | —              | system message bus (infrastructure)  |
 
 Only `openchamber` autostarts (`autostart=true`). `vnc`, `websockify`,
@@ -166,6 +197,7 @@ your current set of apps running.
 | Env var   | Default | Effect                |
 | --------- | ------- | --------------------- |
 | `WEB_USER`| `user`  | account name          |
+| `TLS_SAN` | —       | extra SANs for the generated certificate, e.g. `DNS:devbox.lan,IP:192.168.1.10`. Only read when the certificate does not exist yet. |
 
 noVNC defaults to *remote* resize (`etc/novnc/defaults.json`), so the VNC
 screen resolution follows the browser window; `-geometry 1600x1000` in

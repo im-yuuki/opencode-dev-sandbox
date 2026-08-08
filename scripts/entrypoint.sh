@@ -43,6 +43,33 @@ su -s /bin/bash "$WEB_USER" -c '
   fi
 '
 
+# ---- TLS: self-signed cert, generated once on first run ----
+# Lives on the /workspace volume so the browser's trust exception survives a
+# container rebuild; delete the directory to force a new pair. The key is
+# root-owned 0600 — `user` has passwordless sudo anyway, but nothing that runs
+# as the account needs to read it (nginx opens it as root before dropping).
+TLS_DIR=/workspace/.devbox/tls
+TLS_CRT="$TLS_DIR/devbox.crt"
+TLS_KEY="$TLS_DIR/devbox.key"
+
+if [ ! -s "$TLS_CRT" ] || [ ! -s "$TLS_KEY" ]; then
+  mkdir -p "$TLS_DIR"
+  # SANs: the names a browser can actually reach the box by. TLS_SAN adds extra
+  # comma-separated entries (e.g. TLS_SAN="DNS:devbox.lan,IP:192.168.1.10").
+  san="DNS:localhost,DNS:$(hostname),IP:127.0.0.1,IP:0:0:0:0:0:0:0:1"
+  [ -n "${TLS_SAN:-}" ] && san="$san,$TLS_SAN"
+  openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
+    -keyout "$TLS_KEY" -out "$TLS_CRT" \
+    -subj "/CN=devbox" -addext "subjectAltName=$san" \
+    -addext "basicConstraints=critical,CA:FALSE" \
+    -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+    -addext "extendedKeyUsage=serverAuth"
+  echo "devbox: generated self-signed certificate ($san)"
+fi
+chown root:root "$TLS_CRT" "$TLS_KEY"
+chmod 600 "$TLS_KEY"
+chmod 644 "$TLS_CRT"
+
 # ---- ensure runtime dirs for services ----
 mkdir -p /run/user/1000
 chown "$WEB_USER:$WEB_USER" /run/user/1000

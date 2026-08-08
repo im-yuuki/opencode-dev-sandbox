@@ -199,10 +199,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return v
         return None
 
+    # Secure is unconditional: the gateway is https-only, so a cleartext
+    # request never gets far enough to need the cookie back.
     @staticmethod
     def _session_cookie(token):
         return (
-            f"devbox_session={token}; Path=/; HttpOnly; SameSite=Lax; "
+            f"devbox_session={token}; Path=/; HttpOnly; Secure; SameSite=Lax; "
             f"Max-Age={SESSION_TTL}"
         )
 
@@ -289,7 +291,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             drop_session(self._cookie_token())
             return self._send(
                 {"ok": True},
-                cookie="devbox_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+                cookie="devbox_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
             )
 
         if path.startswith("/api/v1/services/"):

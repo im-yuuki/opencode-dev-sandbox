@@ -21,9 +21,7 @@ RUN sed -i "s|http://deb.debian.org/debian$|${APT_MIRROR}|" /etc/apt/sources.lis
 # Small bootstrap so third-party repos can be added (docker, NodeSource, Chrome).
 # apt-get update runs exactly twice in this whole build: here and below.
 RUN apt-get update
-
 RUN apt-get install -y --no-install-recommends curl ca-certificates gnupg
-
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
 
 # ---- third-party repos: docker-ce, NodeSource, Google Chrome ----
@@ -33,20 +31,14 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
 # Chrome's stable suite publishes amd64 and arm64, so it survives the multi-arch
 # CI build. `arch=` is pinned per stage arch anyway.
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
-
 RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/debian trixie stable" > /etc/apt/sources.list.d/docker.list
-
 RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
-
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | sed -n 's/^NODE_VERSION="\([0-9][0-9]*\)\.x"$/\1/p' > /tmp/node-major
 
 # Guard: an empty file here would silently produce a bogus repo line below.
 RUN test -s /tmp/node-major
-
 RUN echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$(cat /tmp/node-major).x nodistro main" > /etc/apt/sources.list.d/nodesource.list
-
 RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
-
 RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
 
 # Second (and last) apt-get update: all repos are in place now.
@@ -56,7 +48,7 @@ RUN apt-get update
 # KDE Plasma (slim), VNC/noVNC, Google Chrome, Docker CE (DinD).
 # supervisor is PID1 (no systemd); dbus provides the system message bus.
 RUN apt-get install -y --no-install-recommends \
-    nodejs python3 python3-pamela python3-pip python3-venv supervisor dbus locales tzdata sudo git vim htop jq unzip zip p7zip-full build-essential cmake \
+    nodejs python3 python3-pamela python3-pip python3-venv supervisor dbus locales tzdata sudo git vim htop fastfetch jq unzip zip p7zip-full build-essential cmake \
     openssl nginx plasma-desktop kwin-x11 dolphin konsole systemsettings kate dbus-x11 x11-xserver-utils xauth \
     tigervnc-standalone-server novnc websockify google-chrome-stable fonts-liberation \
     docker-ce docker-ce-cli containerd.io docker-compose-plugin
@@ -65,10 +57,7 @@ RUN rm -rf /var/lib/apt/lists/*
 
 # ---- opencode + openchamber ----
 RUN npm install -g opencode-ai
-
 RUN curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
-
-RUN opencode --version
 
 # ---- code-server (VS Code web) ----
 # Prebuilt static tarball, not the npm package: npm's argon2 dependency
@@ -83,23 +72,14 @@ RUN curl -fsSL -o /tmp/code-server.tar.gz \
   && ln -s /usr/local/lib/code-server/bin/code-server /usr/local/bin/code-server \
   && rm /tmp/code-server.tar.gz
 
-RUN code-server --version
-
-RUN openchamber --version
-
 # ---- user account (home = /workspace, password set on first web visit) ----
 # The name is fixed: the control plane, supervisor programs and nginx all
 # assume uid 1000 / "user", so making it configurable only invited drift.
 RUN useradd -m -u 1000 -G docker,sudo -s /bin/bash user
-
 RUN usermod -d /workspace user
-
 RUN printf 'user ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/99-nopasswd
-
 RUN chmod 0440 /etc/sudoers.d/99-nopasswd
-
 RUN mkdir -p /workspace
-
 RUN chown user:user /workspace
 
 # ---- app + configs ----
@@ -120,7 +100,6 @@ RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
 # Docker's overlayfs cannot nest on Docker Desktop's overlay filesystem.
 # vfs is slower/larger, but works reliably for true DinD on macOS and Linux hosts.
 RUN mkdir -p /etc/docker
-
 RUN printf '{"storage-driver":"vfs"}\n' > /etc/docker/daemon.json
 
 # dockerd keeps its stock listener — unix socket only, no 0.0.0.0:2375.

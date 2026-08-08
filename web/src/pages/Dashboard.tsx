@@ -59,15 +59,22 @@ function useApps() {
         refresh();
       }
     },
-    [refresh]
+    [refresh],
   );
 
   return { apps, busyId, act, refresh };
 }
 
-const appRunning = (a: AppInfo) => a.members.length > 0 && a.members.every((m) => m.running);
+const appRunning = (a: AppInfo) =>
+  a.members.length > 0 && a.members.every((m) => m.running);
 
-function StatusChip({ running, someOn }: { running: boolean; someOn: boolean }) {
+function StatusChip({
+  running,
+  someOn,
+}: {
+  running: boolean;
+  someOn: boolean;
+}) {
   const color = running ? "success" : someOn ? "warning" : "default";
   return (
     <Chip size="sm" variant="soft" color={color}>
@@ -94,6 +101,9 @@ function AppRow({
   const someOn = app.members.some((m) => m.running);
   const Icon: LucideIcon = meta?.icon ?? Box;
   const isAgent = app.id === "agent";
+  // Agent is always on, so its link is live even though the row never reports
+  // the Stop/running state the other apps do.
+  const canOpen = Boolean(meta?.url) && (running || isAgent);
 
   return (
     // Mount-only fade/slide. No `layout`: rows never reorder and their height is
@@ -103,8 +113,7 @@ function AppRow({
     <motion.li
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-    >
+      transition={{ duration: 0.25 }}>
       <Card className="w-full items-stretch sm:flex-row sm:items-center sm:gap-4">
         <Avatar size="sm" className="hidden sm:flex">
           <Avatar.Fallback>
@@ -143,19 +152,17 @@ function AppRow({
         </Card.Content>
 
         <Card.Footer className="shrink-0 gap-2">
-          {isAgent ? (
-            <Typography type="body-xs" color="muted">
-              always on · the core of DevBox
-            </Typography>
-          ) : running ? (
+          {/* Agent has no start/stop controls: it is the always-on core, so
+              starting it is a no-op and stopping it would take the launcher
+              down with it. */}
+          {isAgent ? null : running ? (
             <>
               <Button
                 size="sm"
                 variant="danger"
                 isDisabled={busy}
                 isPending={busy}
-                onPress={() => onAction("stop")}
-              >
+                onPress={() => onAction("stop")}>
                 {({ isPending }) => (
                   <>
                     {isPending ? <Spinner color="current" size="sm" /> : null}
@@ -163,74 +170,61 @@ function AppRow({
                   </>
                 )}
               </Button>
-              {/* Launch only frames the app on the start transition; a running
-                  app needs its own way back into the iframe view. */}
               {meta?.embed ? (
                 <Link
                   to={`/embed/${meta.id}`}
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
-                >
+                  className={buttonVariants({
+                    variant: "outline",
+                    size: "sm",
+                  })}>
                   <Frame size={14} />
-                  Open Framed
+                  Launch
                 </Link>
               ) : null}
-              <a
-                href={meta?.url}
-                target="_blank"
-                rel="noopener"
-                aria-disabled={!meta?.url}
-                title={meta?.url ? undefined : "no web UI for this app"}
-                className={buttonVariants({
-                  variant: "outline",
-                  size: "sm",
-                  className: meta?.url ? undefined : "pointer-events-none opacity-50",
-                })}
-              >
-                <ArrowUpRight size={14} />
-                Open in New Tab
-              </a>
             </>
           ) : (
-            <>
-              <Button
-                size="sm"
-                variant="primary"
-                isDisabled={busy}
-                isPending={busy}
-                onPress={onLaunch}
-              >
-                {({ isPending }) => (
-                  <>
-                    {isPending ? <Spinner color="current" size="sm" /> : null}
-                    <Rocket size={14} />
-                    Launch
-                  </>
-                )}
-              </Button>
-              <a
-                href={meta?.url}
-                target="_blank"
-                rel="noopener"
-                aria-disabled
-                title="start the app first"
-                className={buttonVariants({
-                  variant: "outline",
-                  size: "sm",
-                  className: "pointer-events-none opacity-50",
-                })}
-              >
-                <ArrowUpRight size={14} />
-                Open in New Tab
-              </a>
-            </>
+            <Button
+              size="sm"
+              variant="primary"
+              isDisabled={busy}
+              isPending={busy}
+              onPress={onLaunch}>
+              {({ isPending }) => (
+                <>
+                  {isPending ? <Spinner color="current" size="sm" /> : null}
+                  <Rocket size={14} />
+                  Launch
+                </>
+              )}
+            </Button>
           )}
+          {/* Only apps that actually serve a web UI get this; Docker has no
+              `url`, so it renders nothing rather than a permanently dead
+              button. */}
+          {meta?.url ? (
+            <a
+              href={meta.url}
+              target="_blank"
+              rel="noopener"
+              aria-disabled={!canOpen}
+              title={canOpen ? undefined : "start the app first"}
+              className={buttonVariants({
+                variant: "outline",
+                size: "sm",
+                className: canOpen
+                  ? undefined
+                  : "pointer-events-none opacity-50",
+              })}>
+              <ArrowUpRight size={14} />
+              Open in New Tab
+            </a>
+          ) : null}
           <Button
             isIconOnly
             size="sm"
             variant="ghost"
             aria-label={`refresh ${meta?.name ?? app.id}`}
-            onPress={onRefresh}
-          >
+            onPress={onRefresh}>
             <RefreshCw size={14} />
           </Button>
         </Card.Footer>
@@ -253,7 +247,7 @@ export function Dashboard({ user }: { user: string }) {
         }
       });
     },
-    [act]
+    [act],
   );
 
   return (
@@ -263,8 +257,7 @@ export function Dashboard({ user }: { user: string }) {
           <a
             href="/"
             title="Open the Agent (OpenChamber)"
-            className="flex items-center gap-2 text-sm font-semibold tracking-tight"
-          >
+            className="flex items-center gap-2 text-sm font-semibold tracking-tight">
             <Box size={16} className="text-zinc-500 dark:text-zinc-400" />
             DevBox
           </a>
@@ -275,8 +268,9 @@ export function Dashboard({ user }: { user: string }) {
               size="sm"
               variant="ghost"
               aria-label="sign out"
-              onPress={() => void api.logout().then(() => window.location.reload())}
-            >
+              onPress={() =>
+                void api.logout().then(() => window.location.reload())
+              }>
               <LogOut size={15} />
             </Button>
           </div>
@@ -285,7 +279,9 @@ export function Dashboard({ user }: { user: string }) {
 
       <main className="mx-auto max-w-5xl px-6 py-10">
         <section>
-          <Header className="mb-2 px-0 uppercase tracking-wider">applications</Header>
+          <Header className="mb-2 px-0 uppercase tracking-wider">
+            applications
+          </Header>
           <ul className="flex flex-col gap-2">
             {apps.map((a) => (
               <AppRow
@@ -298,15 +294,6 @@ export function Dashboard({ user }: { user: string }) {
               />
             ))}
           </ul>
-          <Typography
-            type="body-xs"
-            color="muted"
-            className="mt-3 flex items-center gap-2"
-          >
-            <Rocket size={12} />
-            Agent is always on. Other apps start stopped; Launching one persists
-            it, so it comes back after a container restart until you Stop it.
-          </Typography>
         </section>
       </main>
     </div>
