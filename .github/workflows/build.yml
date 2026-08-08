@@ -15,6 +15,13 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  # Docker Hub pushes are optional and happen only when BOTH secrets are set:
+  #   DOCKERHUB_USERNAME - Docker Hub account or org name
+  #   DOCKERHUB_TOKEN    - Docker Hub access token with read/write scope
+  # Without them, images go to GHCR only. Unlike GHCR, Docker Hub does not
+  # auto-create repositories on first push: the target repo
+  # (<username>/opencode-dev-sandbox) must exist up front.
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
 jobs:
   build-amd64:
@@ -44,6 +51,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Login to Docker Hub
+        # Only when Docker Hub credentials are configured; otherwise GHCR-only.
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v4
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Build refs
         id: refs
         run: |
@@ -52,6 +68,12 @@ jobs:
           echo "img=${IMG}" >> "$GITHUB_OUTPUT"
           echo "arch=${IMG}:${SLUG}-linux-amd64" >> "$GITHUB_OUTPUT"
           echo "cache=${IMG}:cache-${SLUG}-amd64" >> "$GITHUB_OUTPUT"
+          # Only add Docker Hub targets when both Docker Hub secrets are set.
+          DHIMG=""
+          if [[ "${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}" == "true" ]]; then
+            DHIMG="$(printf '%s' "${DOCKERHUB_USERNAME}/${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')"
+          fi
+          echo "dharch=${DHIMG:+${DHIMG}:${SLUG}-linux-amd64}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
         uses: docker/build-push-action@v7
@@ -59,7 +81,9 @@ jobs:
           context: .
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.refs.outputs.arch }}
+          tags: |
+            ${{ steps.refs.outputs.arch }}
+            ${{ steps.refs.outputs.dharch }}
           # Registry-backed cache via GHCR: no 10 GB Actions-cache cap. Each
           # arch and branch keeps its own ref so concurrent jobs never race the
           # same cache manifest. Import is best-effort; export runs only on
@@ -92,6 +116,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Login to Docker Hub
+        # Only when Docker Hub credentials are configured; otherwise GHCR-only.
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v4
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Build refs
         id: refs
         run: |
@@ -100,6 +133,12 @@ jobs:
           echo "img=${IMG}" >> "$GITHUB_OUTPUT"
           echo "arch=${IMG}:${SLUG}-linux-arm64" >> "$GITHUB_OUTPUT"
           echo "cache=${IMG}:cache-${SLUG}-arm64" >> "$GITHUB_OUTPUT"
+          # Only add Docker Hub targets when both Docker Hub secrets are set.
+          DHIMG=""
+          if [[ "${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}" == "true" ]]; then
+            DHIMG="$(printf '%s' "${DOCKERHUB_USERNAME}/${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')"
+          fi
+          echo "dharch=${DHIMG:+${DHIMG}:${SLUG}-linux-arm64}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v7
@@ -107,7 +146,9 @@ jobs:
           context: .
           platforms: linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.refs.outputs.arch }}
+          tags: |
+            ${{ steps.refs.outputs.arch }}
+            ${{ steps.refs.outputs.dharch }}
           cache-from: type=registry,ref=${{ steps.refs.outputs.cache }}
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0},mode=max', steps.refs.outputs.cache) || '' }}
 
@@ -135,17 +176,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Login to Docker Hub
+        # Only when Docker Hub credentials are configured; otherwise GHCR-only.
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v4
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Merge arch manifests into multi-arch tags
         run: |
           IMG="${{ env.REGISTRY }}/$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')"
           SLUG="${{ steps.slug.outputs.slug }}"
+          # Only add Docker Hub targets when both Docker Hub secrets are set.
+          DHIMG=""
+          if [[ "${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}" == "true" ]]; then
+            DHIMG="$(printf '%s' "${DOCKERHUB_USERNAME}/${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')"
+          fi
           # Every branch publishes its own variant tag (de-systemd, feature-x, ...).
-          TARGETS="${IMG}:${SLUG}"
+          TARGETS="${IMG}:${SLUG}${DHIMG:+ ${DHIMG}:${SLUG}}"
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             # v1.2.3 additionally publishes the bare version number.
-            TARGETS="${TARGETS} ${IMG}:${GITHUB_REF_NAME#v}"
+            TARGETS="${TARGETS} ${IMG}:${GITHUB_REF_NAME#v}${DHIMG:+ ${DHIMG}:${GITHUB_REF_NAME#v}}"
           elif [[ "$GITHUB_REF_NAME" == "main" ]]; then
-            TARGETS="${TARGETS} ${IMG}:latest ${IMG}:main"
+            TARGETS="${TARGETS} ${IMG}:latest ${IMG}:main${DHIMG:+ ${DHIMG}:latest ${DHIMG}:main}"
           fi
           for t in $TARGETS; do
             docker buildx imagetools create -t "$t" "$IMG:${SLUG}-linux-amd64" "$IMG:${SLUG}-linux-arm64"

@@ -8,7 +8,7 @@ import "./index.css";
 // index.html syncs to the OS light/dark preference before first paint.
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter basename="/ui">
+    <BrowserRouter basename="/launcher">
       <App />
     </BrowserRouter>
   </StrictMode>

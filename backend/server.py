@@ -3,11 +3,12 @@
 
 Single-process ThreadingHTTPServer bound to 127.0.0.1, used by nginx as:
   * a PAM authentication + session backend (replaces HTTP basic auth)
-  * a systemd service-toggling control API.
+  * a supervisor service-toggling control API.
 
-Runs as root so it can read /etc/shadow (PAM) and drive systemctl.
+Runs as root so it can read /etc/shadow (PAM) and drive supervisorctl.
 """
 import http.server
+import importlib
 import json
 import os
 import secrets
@@ -18,43 +19,85 @@ import urllib.parse
 
 USER = os.environ.get("DEVBOX_USER", "user")
 HOST = os.environ.get("DEVBOX_BIND", "127.0.0.1")
-PORT = int(os.environ.get("DEVBOX_PORT", "3100"))
+PORT = int(os.environ.get("DEVBOX_PORT", "9102"))
 SESSION_TTL = 60 * 60 * 12  # 12h
 
-# Feature groups: id -> (name, [systemd units], protected)
-# Services the user cannot turn off (the gateway and the auth control plane)
-# are protected; toggling one would lock everyone out of the box.
-# Desktop = one feature: Xvnc + Plasma (vnc.service) toggled together with its
-# noVNC bridge (websockify.service) so the pair stays consistent.
-GROUPS = {
+# ---- login rate limit ----
+# Per-IP, not global: there is exactly one account, so a global counter would
+# let anyone on the network lock the owner out of their own box by failing a
+# few logins. nginx overwrites X-Real-IP with $remote_addr, so the client
+# cannot forge the key.
+RL_MAX_FAILS = 5  # failures allowed inside the window
+RL_WINDOW = 15 * 60  # window in which failures accumulate
+RL_LOCK = 5 * 60  # lockout once the window is full
+
+# Where the dashboard persists which applications the user turned on, so they
+# come back after a container restart (the volume survives `docker stop` and a
+# `docker rm -f` + `docker run` replacement; a bare container filesystem would not).
+STATE_DIR = "/workspace/.devbox"
+STATE_FILE = os.path.join(STATE_DIR, "apps.json")
+
+# Applications shown on the dashboard. id -> (display name, [supervisor
+# programs]). nginx (gateway) and dbus stay supervised but are never listed:
+# the gateway cannot be toggled (stopping it locks everyone out) and dbus is
+# session infrastructure. "agent" is the core app: always autostarted, never
+# offered Launch/Stop controls.
+# Desktop = one feature: Xvnc + Plasma (vnc) toggled together with its
+# noVNC bridge (websockify) so the pair stays consistent.
+APPS = {
+    "agent": ("Agent", [("openchamber", "OpenCode UI + terminal")]),
+    "files": ("Files", [("cloudcmd", "Cloud Commander file manager")]),
     "desktop": (
-        "Desktop (Plasma)",
-        [("vnc.service", "Xvnc + Plasma"), ("websockify.service", "noVNC bridge")],
-        False,
+        "Desktop",
+        [("vnc", "Xvnc + Plasma"), ("websockify", "noVNC bridge")],
     ),
-    "terminal": ("Web terminal (ttyd)", [("ttyd.service", "ttyd")], False),
-    "openchamber": ("OpenChamber", [("openchamber.service", "opencode UI")], False),
-    "cockpit": ("Cockpit admin", [("cockpit.socket", "web admin")], False),
-    "docker": ("Docker (DinD)", [("docker.service", "nested daemon")], False),
-    "gateway": ("Web gateway (nginx)", [("nginx.service", "nginx")], True),
+    "code": ("Code", [("code-server", "VS Code web")]),
+    "docker": ("Docker", [("docker", "nested daemon (DinD)")]),
 }
-# Control plane itself is never listed/toggled (auth depends on it).
 ACTIONS = {"start", "stop", "restart"}
 
 sessions = {}
 _lock = threading.Lock()
+
+# ip -> {"attempts": int, "first": float, "until": float}
+attempts = {}
+_rl_lock = threading.Lock()
+
+
+# ---------------- rate limit ----------------
+def rl_admit(ip: str) -> int:
+    """Atomically reserve one login attempt; return wait seconds if denied."""
+    now = time.time()
+    with _rl_lock:
+        rec = attempts.get(ip)
+        if rec and rec["until"] > now:
+            return int(rec["until"] - now) + 1
+        if not rec or now - rec["first"] > RL_WINDOW:
+            rec = {"attempts": 0, "first": now, "until": 0.0}
+        if rec["attempts"] >= RL_MAX_FAILS:
+            rec["until"] = now + RL_LOCK
+            rec["attempts"] = 0
+            rec["first"] = now
+            attempts[ip] = rec
+            return RL_LOCK
+        rec["attempts"] += 1
+        attempts[ip] = rec
+        return 0
+
+
+def rl_reset(ip: str) -> None:
+    """A correct password clears the record: the owner is not the attacker."""
+    with _rl_lock:
+        attempts.pop(ip, None)
 
 
 # ---------------- pam / shadow ----------------
 def pam_authenticate(password: str) -> bool:
     """Authenticate USER against Linux PAM (pam_unix via shadow)."""
     try:
-        import pamela
-
+        pamela = importlib.import_module("pamela")
         pamela.authenticate(USER, password, service="login")
         return True
-    except pamela.PAMError:
-        return False
     except Exception:
         return False
 
@@ -113,15 +156,53 @@ def drop_session(token):
         sessions.pop(token, None)
 
 
-# ---------------- systemd ----------------
-def is_active(unit: str) -> bool:
-    r = subprocess.run(["systemctl", "is-active", unit], capture_output=True, text=True)
+# ---------------- supervisor ----------------
+SUPERVISORCTL = ["supervisorctl", "-c", "/etc/supervisor/supervisord.conf"]
+
+
+def is_active(prog: str) -> bool:
+    r = subprocess.run(
+        [*SUPERVISORCTL, "status", prog], capture_output=True, text=True
+    )
+    return r.returncode == 0 and "RUNNING" in r.stdout
+
+
+def svc_action(prog: str, action: str) -> bool:
+    # Idempotent: starting a running program (or stopping a stopped one) is a
+    # no-op success, mirroring systemctl's behavior.
+    if action == "start" and is_active(prog):
+        return True
+    if action == "stop" and not is_active(prog):
+        return True
+    r = subprocess.run([*SUPERVISORCTL, action, prog], capture_output=True, text=True)
     return r.returncode == 0
 
 
-def systemctl_action(unit: str, action: str) -> bool:
-    r = subprocess.run(["systemctl", action, unit], capture_output=True, text=True)
-    return r.returncode == 0
+# ---------------- app enablement (survives container restart) ----------------
+def load_enabled() -> set:
+    """Ids of applications the user has turned on. Missing/corrupt -> empty."""
+    try:
+        with open(STATE_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return set()
+    return {a for a in data.get("enabled", []) if a in APPS}
+
+
+def save_enabled(enabled: set) -> None:
+    try:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"enabled": sorted(enabled)}, f, indent=2)
+    except Exception:
+        pass
+
+
+def restore_enabled() -> None:
+    """Start every app that was enabled before the container restarted."""
+    for app_id in load_enabled():
+        for prog, _ in APPS[app_id][1]:
+            svc_action(prog, "start")
 
 
 # ---------------- http ----------------
@@ -129,13 +210,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     # helpers
-    def _send(self, obj, code=200, cookie=None):
+    def _send(self, obj, code=200, cookie=None, headers=None):
         body = json.dumps(obj).encode()
         self.send_response(code)
         # Set-Cookie must be emitted after send_response(), otherwise it is
         # written into the header buffer ahead of the status line.
         if cookie:
             self.send_header("Set-Cookie", cookie)
+        for name, value in (headers or {}).items():
+            self.send_header(name, str(value))
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
@@ -157,10 +240,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return v
         return None
 
+    # Secure is unconditional: the gateway is https-only, so a cleartext
+    # request never gets far enough to need the cookie back.
     @staticmethod
     def _session_cookie(token):
         return (
-            f"devbox_session={token}; Path=/; HttpOnly; SameSite=Lax; "
+            f"devbox_session={token}; Path=/; HttpOnly; Secure; SameSite=Lax; "
             f"Max-Age={SESSION_TTL}"
         )
 
@@ -175,6 +260,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _authed_user(self):
         return session_user(self._cookie_token())
+
+    def _client_ip(self):
+        # nginx sets X-Real-IP from $remote_addr on the proxied locations. The
+        # API only listens on 127.0.0.1, so the header is not attacker-settable
+        # from outside; the socket address is the fallback for direct calls.
+        return self.headers.get("X-Real-IP") or self.client_address[0]
 
     def send_error(self, code, message=None, explain=None):
         try:
@@ -197,20 +288,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/v1/services":
             if not self._authed_user():
                 return self._send({"error": "unauthorized"}, 401)
-            groups = []
-            for gid, (name, members, protected) in GROUPS.items():
-                groups.append(
-                    {
-                        "id": gid,
-                        "name": name,
-                        "protected": protected,
-                        "members": [
-                            {"unit": unit, "name": label, "running": is_active(unit)}
-                            for unit, label in members
-                        ],
-                    }
-                )
-            return self._send({"groups": groups})
+            return self._send(
+                {
+                    "apps": [
+                        {
+                            "id": app_id,
+                            "name": name,
+                            "running": all(is_active(p) for p, _ in members),
+                            "members": [
+                                {"unit": prog, "name": label, "running": is_active(prog)}
+                                for prog, label in members
+                            ],
+                        }
+                        for app_id, (name, members) in APPS.items()
+                    ]
+                }
+            )
         return self._plain("not found", 404)
 
     def do_POST(self):
@@ -232,10 +325,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if path == "/api/v1/login":
             pw = str(body.get("password") or "")
+            ip = self._client_ip()
+            # Checked before PAM so a locked-out caller costs nothing and gets
+            # no signal about whether the password was right.
+            wait = rl_admit(ip)
+            if wait:
+                return self._send(
+                    {
+                        "error": f"too many failed attempts, retry in {wait}s",
+                        "retryAfter": wait,
+                    },
+                    429,
+                    headers={"Retry-After": wait},
+                )
             if password_locked():
+                # Setup mode is not a password guess; do not spend an attempt.
+                rl_reset(ip)
                 return self._send({"error": "password must be set first"}, 409)
             if not pam_authenticate(pw):
                 return self._send({"error": "invalid credentials"}, 401)
+            rl_reset(ip)
             token = new_session()
             return self._send(
                 {"user": USER, "ok": True}, cookie=self._session_cookie(token)
@@ -245,7 +354,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             drop_session(self._cookie_token())
             return self._send(
                 {"ok": True},
-                cookie="devbox_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+                cookie="devbox_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
             )
 
         if path.startswith("/api/v1/services/"):
@@ -254,21 +363,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             rest = path[len("/api/v1/services/"):].split("/")
             if len(rest) != 2:
                 return self._send({"error": "bad request"}, 400)
-            gid, action = rest
-            if gid not in GROUPS or action not in ACTIONS:
-                return self._send({"error": "unknown service or action"}, 400)
-            _, members, protected = GROUPS[gid]
-            if protected:
-                return self._send({"error": "protected service"}, 403)
-            for unit, _ in members:
-                if not systemctl_action(unit, action):
+            app_id, action = rest
+            if app_id not in APPS or action not in ACTIONS:
+                return self._send({"error": "unknown application or action"}, 400)
+            members = APPS[app_id][1]
+            # Persist enablement so Launch survives a container restart; stop
+            # clears it. restart leaves the saved state untouched.
+            enabled = load_enabled()
+            if action == "start":
+                enabled.add(app_id)
+                save_enabled(enabled)
+            elif action == "stop":
+                enabled.discard(app_id)
+                save_enabled(enabled)
+            for prog, _ in members:
+                if not svc_action(prog, action):
                     return self._send(
-                        {"error": f"systemctl {action} {unit} failed"}, 500
+                        {"error": f"supervisorctl {action} {prog} failed"}, 500
                     )
             return self._send(
                 {
-                    "id": gid,
-                    "running": all(is_active(u) for u, _ in members),
+                    "id": app_id,
+                    "running": all(is_active(p) for p, _ in members),
                 }
             )
 
@@ -276,6 +392,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
+    # Bring back applications that were enabled before the container restarted.
+    # Agent and infrastructure (nginx, dbus) autostart via supervisord instead.
+    restore_enabled()
     server = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"devbox api listening on {HOST}:{PORT} for user '{USER}'", flush=True)
     server.serve_forever()
