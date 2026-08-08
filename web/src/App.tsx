@@ -1,13 +1,17 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router";
+import { Routes, Route, Navigate, useLocation, useSearchParams } from "react-router";
 import { Spinner } from "@heroui/react";
 import { api, type BootInfo } from "./api";
 import { LoginPage } from "./pages/Login";
 import { SetupPage } from "./pages/Setup";
 import { Dashboard } from "./pages/Dashboard";
 import { Embed } from "./pages/Embed";
+import { ErrorPage } from "./pages/Error";
 
-type Gate = { loading: true } | { loading: false; boot: BootInfo };
+type Gate =
+  | { loading: true }
+  | { loading: false; boot: BootInfo }
+  | { loading: false; error: number };
 
 function useGate(): Gate {
   const [gate, setGate] = useState<Gate>({ loading: true });
@@ -16,11 +20,12 @@ function useGate(): Gate {
     void api
       .boot()
       .then((boot) => alive && setGate({ loading: false, boot }))
-      .catch(
-        () =>
-          alive &&
-          setGate({ loading: false, boot: { authed: false, needsSetup: false, user: null } })
-      );
+      .catch((er: { status?: number }) => {
+        // /boot never rejects for "not signed in" — it answers authed:false.
+        // A failure here means the control plane is unreachable, which is worth
+        // showing as such instead of a login form that cannot work.
+        if (alive) setGate({ loading: false, error: er.status ?? 503 });
+      });
     return () => {
       alive = false;
     };
@@ -32,7 +37,7 @@ function RequireAuth({
   gate,
   children,
 }: {
-  gate: Extract<Gate, { loading: false }>;
+  gate: { boot: BootInfo };
   children: ReactNode;
 }) {
   const loc = useLocation();
@@ -42,14 +47,38 @@ function RequireAuth({
   return <>{children}</>;
 }
 
+// An already-signed-in visitor on /login still owes the `next` hop that the
+// 401 page attached, otherwise a session that revived mid-flow strands them on
+// the dashboard instead of the tool they asked for.
+function PostLogin() {
+  const [params] = useSearchParams();
+  const next = params.get("next");
+  if (next && next.startsWith("/") && !next.startsWith("//")) {
+    window.location.replace(next);
+    return null;
+  }
+  return <Navigate to="/" replace />;
+}
+
 export function App() {
   const gate = useGate();
+  const onErrorRoute = useLocation().pathname === "/error";
+
+  // /error is the one route that must render without a working control plane:
+  // nginx sends users here precisely when something upstream is broken, and the
+  // gate's own boot call is often the thing that failed.
+  if (onErrorRoute) {
+    return <ErrorPage />;
+  }
   if (gate.loading) {
     return (
       <div className="grid h-screen place-items-center gap-3">
         <Spinner size="lg" />
       </div>
     );
+  }
+  if ("error" in gate) {
+    return <ErrorPage code={gate.error} />;
   }
 
   return (
@@ -64,10 +93,7 @@ export function App() {
           )
         }
       />
-      <Route
-        path="/login"
-        element={gate.boot.authed ? <Navigate to="/" replace /> : <LoginPage />}
-      />
+      <Route path="/login" element={gate.boot.authed ? <PostLogin /> : <LoginPage />} />
       <Route
         path="/"
         element={
@@ -84,7 +110,10 @@ export function App() {
           </RequireAuth>
         }
       />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* handled above, before the gate: kept so the path is not a 404 */}
+      <Route path="/error" element={<ErrorPage />} />
+      {/* an unknown SPA path is a genuine 404, not a silent bounce home */}
+      <Route path="*" element={<ErrorPage code={404} />} />
     </Routes>
   );
 }

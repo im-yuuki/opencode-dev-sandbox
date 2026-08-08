@@ -2,22 +2,15 @@ import { Link, useParams } from "react-router";
 import { buttonVariants } from "@heroui/react";
 import { ArrowLeft, ExternalLink, Frame } from "lucide-react";
 import { toolById } from "../tools";
+import { ErrorPage } from "./Error";
 
 export function Embed() {
   const { tool } = useParams<{ tool: string }>();
   const def = tool ? toolById(tool) : undefined;
 
+  // Unknown id, or a tool that refuses framing: both are dead ends for this route.
   if (!def || !def.embed) {
-    return (
-      <div className="flex h-screen items-center justify-center px-4">
-        <div className="text-center">
-          <p className="devbox-muted mb-4">This tool cannot be embedded.</p>
-          <Link to="/" className={buttonVariants({ variant: "outline", size: "sm" })}>
-            Back to dashboard
-          </Link>
-        </div>
-      </div>
-    );
+    return <ErrorPage code={404} />;
   }
 
   return (

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, Link } from "react-router";
+import { useLocation, useSearchParams, Link } from "react-router";
 import {
   Button,
   FieldError,
@@ -19,11 +19,22 @@ type FormSubmitHandler = NonNullable<FormProps["onSubmit"]>;
 
 export function LoginPage() {
   const loc = useLocation() as { state?: { from?: string } };
+  const [params] = useSearchParams();
   const [pw, setPw] = useState("");
   // Server-side rejection, surfaced through the form's own error channel so it
   // renders in the same FieldError slot as client-side validation.
   const [serverErr, setServerErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // `next` comes from the 401 page and is an absolute path outside /ui (a
+  // proxied tool); router state carries in-app paths, which are /ui-relative.
+  // Only same-origin paths are accepted, so the query cannot become an open
+  // redirect to another host.
+  const next = params.get("next");
+  const target =
+    next && next.startsWith("/") && !next.startsWith("//")
+      ? next
+      : `/ui${loc.state?.from || "/"}`;
 
   const submit: FormSubmitHandler = async (e) => {
     e.preventDefault();
@@ -33,7 +44,7 @@ export function LoginPage() {
       await api.login(pw);
       // Full reload: the auth gate caches boot state at mount, so a client-side
       // nav would re-render with the stale unauthenticated gate and bounce back.
-      window.location.assign(`/ui${loc.state?.from || "/"}`);
+      window.location.assign(target);
     } catch (er) {
       const s = (er as { status?: number }).status;
       if (s === 409) {
