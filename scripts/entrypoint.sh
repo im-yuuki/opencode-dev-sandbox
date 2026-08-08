@@ -16,6 +16,12 @@ usermod -d /workspace "$WEB_USER" 2>/dev/null || true
 mkdir -p /workspace
 chown "$WEB_USER:$WEB_USER" /workspace
 
+# Cloud Commander keeps its user-adjustable preferences (notably ZIP vs
+# tar.gz packing) outside the browsable workspace root.
+mkdir -p /workspace/.devbox/cloudcmd
+chown "$WEB_USER:$WEB_USER" /workspace/.devbox/cloudcmd
+chmod 700 /workspace/.devbox/cloudcmd
+
 # NOTE: no password is set here. The account is created locked and the user
 # sets their own password on first visit via the web UI (Linux PAM + chpasswd).
 

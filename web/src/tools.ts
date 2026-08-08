@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Braces, Cable, Container, MonitorPlay } from "lucide-react";
+import { Braces, Cable, Container, FolderOpen, MonitorPlay } from "lucide-react";
 
 // Application metadata, keyed by the control plane's app ids. "agent" is the
 // always-on core: the dashboard gives it no Stop control, but it does get
@@ -22,6 +22,14 @@ export const TOOLS: Record<string, ToolDef> = {
     description: "OpenCode: sessions, diffs, git, terminal, editor.",
     icon: Cable,
     url: "/",
+  },
+  files: {
+    id: "files",
+    name: "Files",
+    description: "Manage /workspace files, folders, archives and text.",
+    icon: FolderOpen,
+    url: "/files/",
+    embed: true,
   },
   desktop: {
     id: "desktop",

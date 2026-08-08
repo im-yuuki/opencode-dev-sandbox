@@ -46,6 +46,7 @@ STATE_FILE = os.path.join(STATE_DIR, "apps.json")
 # noVNC bridge (websockify) so the pair stays consistent.
 APPS = {
     "agent": ("Agent", [("openchamber", "OpenCode UI + terminal")]),
+    "files": ("Files", [("cloudcmd", "Cloud Commander file manager")]),
     "desktop": (
         "Desktop",
         [("vnc", "Xvnc + Plasma"), ("websockify", "noVNC bridge")],

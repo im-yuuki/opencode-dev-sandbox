@@ -1,7 +1,7 @@
 # DevBox
 
 Debian Trixie container with supervisord as PID1 (no systemd), KDE Plasma 6 over
-noVNC, VS Code web, OpenChamber/opencode, and Docker-in-Docker. Everything
+noVNC, VS Code web, Cloud Commander, OpenChamber/opencode, and Docker-in-Docker. Everything
 reachable through a single HTTPS port behind one PAM-backed login.
 
 ## Quick start
@@ -37,13 +37,14 @@ sudo sysctl -w kernel.unprivileged_userns_clone=1
 | `/`                   | OpenChamber           | nginx auth_request (session)  |
 | `/vnc/`               | KDE desktop (noVNC)   | nginx auth_request            |
 | `/code/`              | VS Code web (code-server) | nginx auth_request         |
+| `/files/`             | Cloud Commander file manager | nginx auth_request       |
 
 The control plane lives under `/launcher/api` (nginx strips the prefix; the
 backend keeps serving `/api/v1/*`) so OpenChamber keeps its own `/api`
 endpoints at the root. Legacy `/ui/…` bookmarks 301 to `/launcher/…`.
 
-The dashboard shows the four user-facing *applications* — **Agent** (always on),
-**Desktop**, **Code** and **Docker** — and toggles their supervised programs
+The dashboard shows the five user-facing *applications* — **Agent** (always on),
+**Files**, **Desktop**, **Code** and **Docker** — and toggles their supervised programs
 (`/launcher/api/v1/services` returns them as `apps`). A toggle applies to all of
 an app's programs, so paired features stay consistent — e.g. Desktop toggles
 `vnc` (Xvnc + Plasma) together with its `websockify` noVNC bridge. Everything
@@ -51,6 +52,12 @@ except Agent starts stopped; **Launching an app persists it** (state file in
 `/workspace/.devbox/apps.json`), so it comes back after a container restart
 until you Stop it. `nginx` (gateway) and the control plane are always on and
 never listed: stopping the gateway locks everyone out of the box.
+
+**Files** launches Cloud Commander rooted at `/workspace`. It provides uploads,
+downloads, folder-to-ZIP/`tar.gz` archives, cut/copy/paste/delete, new folders and files,
+text editing, previews, and size/date/owner/mode properties. It runs as `user`,
+binds only to loopback, and relies on the nginx session gate. Shell console and
+terminal are disabled. Choose ZIP or `tar.gz` using the file manager settings.
 
 ## Process model
 
@@ -64,12 +71,7 @@ the workspace) and supervises one program per service under
 
 ```bash
 # Map any free host port to the container gateway (9080):
-docker run -d --name devbox \
-  --privileged \
-  -p 8080:9080 \
-  -v devbox-workspace:/workspace \
-  --tmpfs /tmp \
-  devbox
+docker run -d --name devbox --privileged -p 8080:9080 -v devbox-workspace:/workspace --tmpfs /tmp devbox
 ```
 
 `-p` only chooses the published host port; nothing inside the box redirects to
@@ -147,6 +149,14 @@ docker run --rm hello-world
 docker compose version      # v2 plugin
 ```
 
+## Web file manager
+
+Launch **Files** from the dashboard, or open `/files/` after starting it. Cloud
+Commander uses two file panels; right-click or press F9 for View, Edit, Rename,
+Delete, Pack, Download, Cut, Copy, Paste, New and Upload. Folder downloads use
+the current packer. Open F10 settings and select `tar` for `.tar.gz`, or `zip`
+for `.zip`; the choice persists under `/workspace/.devbox/cloudcmd/`.
+
 ## Preinstalled
 
 - git, curl, wget, vim, htop, jq, zip/unzip, p7zip
@@ -157,6 +167,7 @@ docker compose version      # v2 plugin
 - `opencode`, `openchamber`
 - `code-server` (VS Code web; prebuilt static tarball — the npm package breaks
   on arm64, argon2 needs node-gyp against the distro node)
+- `cloudcmd` (Cloud Commander web file manager, rooted at `/workspace`)
 - KDE: plasma-desktop, kwin-x11, dolphin, konsole, systemsettings, kate
 - google-chrome-stable (Google's apt repo; amd64 + arm64)
 
@@ -168,16 +179,17 @@ docker compose version      # v2 plugin
 | `vnc`         | Desktop      | 5905           | Xvnc + Plasma (display :5), runs as `user` |
 | `websockify`  | Desktop      | 9103           | noVNC static + WS bridge → 5905      |
 | `code-server` | Code         | 9101 (loopback) | VS Code web, routed `/code/`      |
+| `cloudcmd`    | Files        | 9104 (loopback) | Cloud Commander, routed `/files/` |
 | `docker`      | Docker       | unix sock      | DinD (vfs storage driver)            |
 | `devbox-api`  | —            | 9102 (loopback) | control plane: PAM, sessions, supervisor, app restore |
 | `nginx`       | —            | 9080 (https)   | gateway; map any host port to it     |
 | `dbus`        | —            | —              | system message bus (infrastructure)  |
 
 Only `openchamber` autostarts (`autostart=true`). `vnc`, `websockify`,
-`code-server` and `docker` have `autostart=false`: they start when the dashboard
+`code-server`, `cloudcmd` and `docker` have `autostart=false`: they start when the dashboard
 launches them, and the control plane re-starts the persisted set on boot.
 
-Internal services sit on high ports (9100–9103, nginx 9080, VNC 5905) so a dev
+Internal services sit on high ports (9100–9104, nginx 9080, VNC 5905) so a dev
 server you run inside the box (vite 5173, next/react 3000, spring 8080, …) never
 collides with them.
 

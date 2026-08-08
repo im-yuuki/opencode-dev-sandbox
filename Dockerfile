@@ -60,6 +60,12 @@ RUN rm -rf /var/lib/apt/lists/*
 RUN npm install -g opencode-ai
 RUN curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
 
+# ---- Cloud Commander (web file manager) ----
+# Pinned for reproducible builds. It runs unprivileged and is exposed only
+# through nginx, which supplies the DevBox session authentication.
+ARG CLOUDCMD_VERSION=19.20.0
+RUN npm install -g "cloudcmd@${CLOUDCMD_VERSION}" --no-audit --no-fund
+
 # ---- code-server (VS Code web) ----
 # Prebuilt static tarball, not the npm package: npm's argon2 dependency
 # compiles from source and breaks under node 24 on arm64. Release assets are
