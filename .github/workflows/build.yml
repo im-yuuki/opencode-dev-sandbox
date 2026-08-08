@@ -1,8 +1,9 @@
 name: Build DevBox image
 
 on:
+  # Every branch push builds its own image variant; version tags (v*) and
+  # workflow_dispatch (any branch) too.
   push:
-    branches: [main]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -26,6 +27,14 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Branch slug
+        # GITHUB_REF_NAME is the branch (or v-tag) name; normalize it into a
+        # valid Docker tag so e.g. feature/x becomes feature-x.
+        id: slug
+        run: |
+          SLUG="$(printf '%s' "$GITHUB_REF_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+          echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
+
       - name: Login to GHCR
         # Always, not just pushes: PRs restore the registry build cache and
         # GITHUB_TOKEN reads/writes packages in this repo.
@@ -39,9 +48,10 @@ jobs:
         id: refs
         run: |
           IMG="${{ env.REGISTRY }}/$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')"
+          SLUG="${{ steps.slug.outputs.slug }}"
           echo "img=${IMG}" >> "$GITHUB_OUTPUT"
-          echo "arch=${IMG}:linux-amd64" >> "$GITHUB_OUTPUT"
-          echo "cache=${IMG}:buildcache-amd64" >> "$GITHUB_OUTPUT"
+          echo "arch=${IMG}:${SLUG}-linux-amd64" >> "$GITHUB_OUTPUT"
+          echo "cache=${IMG}:cache-${SLUG}-amd64" >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
         uses: docker/build-push-action@v7
@@ -51,9 +61,10 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.refs.outputs.arch }}
           # Registry-backed cache via GHCR: no 10 GB Actions-cache cap. Each
-          # arch keeps its own ref so the concurrent jobs never race the same
-          # cache manifest. Import is best-effort; export runs only on non-PR
-          # runs so an unmerged PR never overwrites the cache main builds from.
+          # arch and branch keeps its own ref so concurrent jobs never race the
+          # same cache manifest. Import is best-effort; export runs only on
+          # non-PR runs so an unmerged PR never overwrites cache that branch
+          # builds from.
           cache-from: type=registry,ref=${{ steps.refs.outputs.cache }}
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0},mode=max', steps.refs.outputs.cache) || '' }}
 
@@ -68,6 +79,12 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Branch slug
+        id: slug
+        run: |
+          SLUG="$(printf '%s' "$GITHUB_REF_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+          echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
+
       - name: Login to GHCR
         uses: docker/login-action@v4
         with:
@@ -79,9 +96,10 @@ jobs:
         id: refs
         run: |
           IMG="${{ env.REGISTRY }}/$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')"
+          SLUG="${{ steps.slug.outputs.slug }}"
           echo "img=${IMG}" >> "$GITHUB_OUTPUT"
-          echo "arch=${IMG}:linux-arm64" >> "$GITHUB_OUTPUT"
-          echo "cache=${IMG}:buildcache-arm64" >> "$GITHUB_OUTPUT"
+          echo "arch=${IMG}:${SLUG}-linux-arm64" >> "$GITHUB_OUTPUT"
+          echo "cache=${IMG}:cache-${SLUG}-arm64" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v7
@@ -104,6 +122,12 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Branch slug
+        id: slug
+        run: |
+          SLUG="$(printf '%s' "$GITHUB_REF_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+          echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
+
       - name: Login to GHCR
         uses: docker/login-action@v4
         with:
@@ -114,12 +138,15 @@ jobs:
       - name: Merge arch manifests into multi-arch tags
         run: |
           IMG="${{ env.REGISTRY }}/$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')"
-          TARGETS="${IMG}:latest"
+          SLUG="${{ steps.slug.outputs.slug }}"
+          # Every branch publishes its own variant tag (de-systemd, feature-x, ...).
+          TARGETS="${IMG}:${SLUG}"
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            # v1.2.3 additionally publishes the bare version number.
             TARGETS="${TARGETS} ${IMG}:${GITHUB_REF_NAME#v}"
           elif [[ "$GITHUB_REF_NAME" == "main" ]]; then
-            TARGETS="${TARGETS} ${IMG}:main"
+            TARGETS="${TARGETS} ${IMG}:latest ${IMG}:main"
           fi
           for t in $TARGETS; do
-            docker buildx imagetools create -t "$t" "$IMG:linux-amd64" "$IMG:linux-arm64"
+            docker buildx imagetools create -t "$t" "$IMG:${SLUG}-linux-amd64" "$IMG:${SLUG}-linux-arm64"
           done
