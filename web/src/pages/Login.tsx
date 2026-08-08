@@ -1,18 +1,33 @@
-import { useState, type SubmitEvent } from "react";
-import { useLocation, Link } from "react-router-dom";
-import { Input, Button } from "@heroui/react";
+import { useState } from "react";
+import { useLocation, Link } from "react-router";
+import {
+  Button,
+  FieldError,
+  Form,
+  Input,
+  Label,
+  Spinner,
+  TextField,
+  type FormProps,
+} from "@heroui/react";
 import { KeyRound } from "lucide-react";
 import { api } from "../api";
+
+// Derived from the Form prop rather than spelled out: react-aria still types
+// its onSubmit with the deprecated React FormEvent.
+type FormSubmitHandler = NonNullable<FormProps["onSubmit"]>;
 
 export function LoginPage() {
   const loc = useLocation() as { state?: { from?: string } };
   const [pw, setPw] = useState("");
-  const [err, setErr] = useState<string | null>(null);
+  // Server-side rejection, surfaced through the form's own error channel so it
+  // renders in the same FieldError slot as client-side validation.
+  const [serverErr, setServerErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: SubmitEvent<HTMLFormElement>) {
+  const submit: FormSubmitHandler = async (e) => {
     e.preventDefault();
-    setErr(null);
+    setServerErr(null);
     setBusy(true);
     try {
       await api.login(pw);
@@ -24,16 +39,20 @@ export function LoginPage() {
       if (s === 409) {
         window.location.assign("/ui/setup");
       } else {
-        setErr((er as Error).message || "Invalid credentials");
+        setServerErr((er as Error).message || "Invalid credentials");
       }
     } finally {
       setBusy(false);
     }
-  }
+  };
 
   return (
     <div className="grid h-screen place-items-center px-4">
-      <form onSubmit={submit} className="devbox-card w-full max-w-sm p-8">
+      <Form
+        onSubmit={submit}
+        validationErrors={serverErr ? { password: serverErr } : undefined}
+        className="devbox-card w-full max-w-sm p-8"
+      >
         <div className="mb-1 flex items-center gap-2">
           <span className="devbox-chip p-2">
             <KeyRound size={18} />
@@ -42,33 +61,32 @@ export function LoginPage() {
         <h1 className="text-xl font-semibold tracking-tight">DevBox</h1>
         <p className="devbox-label mb-6">sign in · linux PAM</p>
 
-        <label className="devbox-label" htmlFor="pw">
-          password
-        </label>
-        <Input
-          id="pw"
-          className="mt-1 mb-4"
+        <TextField
+          name="password"
           type="password"
-          value={pw}
           isRequired
-          onChange={(e) => setPw(e.target.value)}
-          placeholder="your password"
-        />
+          value={pw}
+          onChange={setPw}
+          className="mb-4 flex w-full flex-col gap-1"
+        >
+          <Label className="devbox-label">password</Label>
+          <Input placeholder="your password" />
+          <FieldError className="text-sm text-red-600 dark:text-red-400" />
+        </TextField>
 
-        {err && (
-          <p className="mb-3 text-sm text-red-600 dark:text-red-400" role="alert">
-            {err}
-          </p>
-        )}
-
-        <Button type="submit" color="primary" isLoading={busy} className="w-full" variant="solid">
-          Sign in
+        <Button type="submit" variant="primary" isPending={busy} fullWidth>
+          {({ isPending }) => (
+            <>
+              {isPending ? <Spinner color="current" size="sm" /> : null}
+              Sign in
+            </>
+          )}
         </Button>
 
         <p className="devbox-muted mt-5 text-xs">
           First visit? <Link to="/setup">Set your password</Link>.
         </p>
-      </form>
+      </Form>
     </div>
   );
 }

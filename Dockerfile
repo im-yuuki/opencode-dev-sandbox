@@ -1,9 +1,9 @@
 # ============ stage 1: independent frontend build container ============
 FROM node:lts-bookworm-slim AS frontend-build
 WORKDIR /ui
-COPY www/package.json www/package-lock.json ./
+COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY www/ .
+COPY web/ .
 RUN npm run build
 
 # ============ stage 2: final image ============

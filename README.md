@@ -68,16 +68,16 @@ Get a shell:
 
 ## Frontend source
 
-Dashboard/auth UI source lives in `www/` (Vite + React + TypeScript + HeroUI + Tailwind
-+ lucide-react + Framer Motion). The Dockerfile builds it in an independent Node builder
-stage and copies only `www/dist` into the final image.
+Dashboard/auth UI source lives in `web/` (Vite + React + TypeScript + HeroUI v3 + Tailwind
+v4 + lucide-react + Framer Motion). The Dockerfile builds it in an independent Node builder
+stage and copies only `web/dist` into the final image.
 
 ```bash
-cd www
+cd web
 npm ci
 npm run dev       # local Vite server
-npm run typecheck
-npm run build
+npm run lint
+npm run build     # tsc -b && vite build
 ```
 
 ## Docker-in-Docker

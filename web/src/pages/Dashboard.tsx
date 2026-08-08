@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Button } from "@heroui/react";
+import { Button, Spinner, buttonVariants } from "@heroui/react";
 import {
   LogOut,
   ExternalLink,
@@ -17,17 +17,25 @@ import { TOOLS } from "../tools";
 function useGroups() {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const refresh = useCallback(async () => {
-    try {
-      const r = await api.services();
-      setGroups(r.groups);
-    } catch {
-      /* keep last state */
-    }
-  }, []);
+  const [tick, setTick] = useState(0);
+
+  // `tick` is the reload key: bumping it re-runs the fetch. State lands in the
+  // promise callback rather than the effect body, and `alive` drops responses
+  // from a superseded run.
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let alive = true;
+    void api
+      .services()
+      .then((r) => alive && setGroups(r.groups))
+      .catch(() => {
+        /* keep last state */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tick]);
+
+  const refresh = useCallback(() => setTick((t) => t + 1), []);
 
   const act = useCallback(
     async (g: GroupInfo, action: "start" | "stop" | "restart") => {
@@ -38,7 +46,7 @@ function useGroups() {
         /* keep UI stable */
       } finally {
         setBusyId(null);
-        void refresh();
+        refresh();
       }
     },
     [refresh]
@@ -77,7 +85,7 @@ function GroupCard({
         <Button
           isIconOnly
           size="sm"
-          variant="light"
+          variant="ghost"
           aria-label="refresh status"
           onPress={() => onAction("restart")}
         >
@@ -103,18 +111,22 @@ function GroupCard({
         <div className="flex gap-2">
           <Button
             size="sm"
-            variant="solid"
-            color={running ? "danger" : "primary"}
+            variant={running ? "danger" : "primary"}
             isDisabled={busy}
-            isLoading={busy}
+            isPending={busy}
             onPress={() => onAction(running ? "stop" : "start")}
             className="flex-1"
           >
-            {running ? "Stop" : "Start"}
+            {({ isPending }) => (
+              <>
+                {isPending ? <Spinner color="current" size="sm" /> : null}
+                {running ? "Stop" : "Start"}
+              </>
+            )}
           </Button>
           <Button
             size="sm"
-            variant="bordered"
+            variant="outline"
             isDisabled={busy || !someOn}
             onPress={() => onAction("restart")}
             className="flex-1"
@@ -160,28 +172,27 @@ function ToolCard({
         </div>
       </div>
       <div className="mt-auto flex gap-2">
-        <Button
-          as="a"
-          href={`/ui/embed/${id}`}
-          size="sm"
-          variant="solid"
-          color="primary"
-          isDisabled={!embed}
-          startContent={<Frame size={14} />}
+        <a
+          href={embed ? `/ui/embed/${id}` : undefined}
+          aria-disabled={!embed}
+          className={buttonVariants({
+            variant: "primary",
+            size: "sm",
+            className: embed ? undefined : "pointer-events-none opacity-50",
+          })}
         >
+          <Frame size={14} />
           Embed
-        </Button>
-        <Button
-          as="a"
+        </a>
+        <a
           href={url}
           target="_blank"
           rel="noopener"
-          size="sm"
-          variant="bordered"
-          startContent={<ExternalLink size={14} />}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
         >
+          <ExternalLink size={14} />
           Open
-        </Button>
+        </a>
       </div>
     </motion.div>
   );
@@ -203,7 +214,7 @@ export function Dashboard({ user }: { user: string }) {
             <Button
               isIconOnly
               size="sm"
-              variant="light"
+              variant="ghost"
               aria-label="sign out"
               onPress={() => void api.logout().then(() => window.location.reload())}
             >
