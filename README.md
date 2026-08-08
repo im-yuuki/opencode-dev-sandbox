@@ -1,8 +1,8 @@
 # DevBox
 
 Debian Trixie container with supervisord as PID1 (no systemd), KDE Plasma 6 over
-noVNC, OpenChamber/opencode, and Docker-in-Docker. Everything reachable through a
-single HTTP port behind one PAM-backed login.
+noVNC, VS Code web, OpenChamber/opencode, and Docker-in-Docker. Everything
+reachable through a single HTTP port behind one PAM-backed login.
 
 ## Quick start
 
@@ -20,6 +20,7 @@ Open <http://localhost:8080/ui/>. First visit: set the account password at
 | `/ui/embed/:tool`     | iframe view of a tool | session cookie                |
 | `/`                   | OpenChamber           | nginx auth_request (session)  |
 | `/vnc/`               | KDE desktop (noVNC)   | nginx auth_request            |
+| `/code/`              | VS Code web (code-server) | nginx auth_request         |
 | `/api/`               | control plane (PAM)   | session cookie                |
 
 The dashboard toggles supervised services (stop/start/restart) and links tools;
@@ -104,6 +105,8 @@ docker compose version      # v2 plugin
 - Node.js latest LTS + npm (NodeSource apt repo, major resolved from `setup_lts.x` at build time)
 - docker-ce, docker-ce-cli, containerd, docker-compose-plugin
 - `opencode`, `openchamber`
+- `code-server` (VS Code web; prebuilt static tarball — the npm package breaks
+  on arm64, argon2 needs node-gyp against the distro node)
 - KDE: plasma-desktop, kwin-x11, dolphin, konsole, systemsettings, kate
 - google-chrome-stable (Google's apt repo; amd64 + arm64)
 
@@ -115,6 +118,7 @@ docker compose version      # v2 plugin
 | `vnc`         | 5901           | Xvnc + Plasma, runs as `user`        |
 | `websockify`  | 6080           | noVNC static + WS bridge → 5901      |
 | `openchamber` | 3000 (loopback) | no `--lan`; nginx PAM-gates it     |
+| `code-server` | 3001 (loopback) | VS Code web, routed `/code/`      |
 | `devbox-api`  | 3100 (loopback) | control plane: PAM, sessions, supervisor |
 | `nginx`       | 8080           | published gateway                    |
 | `dbus`        | —              | system message bus (infrastructure)  |

@@ -70,6 +70,21 @@ RUN curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/sc
 
 RUN opencode --version
 
+# ---- code-server (VS Code web) ----
+# Prebuilt static tarball, not the npm package: npm's argon2 dependency
+# compiles from source and breaks under node 24 on arm64. Release assets are
+# named after the arch (linux-amd64, linux-arm64), so no mapping is needed;
+# an unsupported arch simply 404s and fails the build.
+ARG CODE_SERVER_VERSION=4.131.0
+RUN curl -fsSL -o /tmp/code-server.tar.gz \
+    "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-$(dpkg --print-architecture).tar.gz" \
+  && tar -xzf /tmp/code-server.tar.gz -C /usr/local/lib \
+  && mv "/usr/local/lib/code-server-${CODE_SERVER_VERSION}-linux-$(dpkg --print-architecture)" /usr/local/lib/code-server \
+  && ln -s /usr/local/lib/code-server/bin/code-server /usr/local/bin/code-server \
+  && rm /tmp/code-server.tar.gz
+
+RUN code-server --version
+
 RUN openchamber --version
 
 # ---- user account (home = /workspace, password set on first web visit) ----

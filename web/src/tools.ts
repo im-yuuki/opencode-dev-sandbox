@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Cable, MonitorPlay } from "lucide-react";
+import { Braces, Cable, MonitorPlay } from "lucide-react";
 
 export interface ToolDef {
   id: string;
@@ -25,6 +25,14 @@ export const TOOLS: ToolDef[] = [
     description: "KDE Plasma session via noVNC.",
     icon: MonitorPlay,
     url: "/vnc/vnc.html?path=vnc/websockify&resize=remote",
+    embed: true,
+  },
+  {
+    id: "code",
+    name: "VS Code",
+    description: "Browser code editor (code-server) on /workspace.",
+    icon: Braces,
+    url: "/code/",
     embed: true,
   },
 ];

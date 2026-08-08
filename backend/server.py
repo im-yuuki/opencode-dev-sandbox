@@ -33,6 +33,7 @@ GROUPS = {
         False,
     ),
     "openchamber": ("OpenChamber", [("openchamber", "opencode UI")], False),
+    "code": ("VS Code", [("code-server", "code-server web")], False),
     "docker": ("Docker (DinD)", [("docker", "nested daemon")], False),
     "gateway": ("Web gateway (nginx)", [("nginx", "nginx")], True),
 }
