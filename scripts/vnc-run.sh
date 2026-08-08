@@ -10,8 +10,13 @@ export HOME=/workspace
 mkdir -p /tmp/.X11-unix
 rm -f /tmp/.X5-lock /tmp/.X11-unix/X5 2>/dev/null || true
 
+# A privileged Linux host exposes /dev/dri, so TigerVNC's default rendernode=auto
+# enables DRI3. Its accelerated framebuffer can retain the old row stride after
+# a RandR shrink, producing horizontal corruption. Software rendering is stable
+# and matches Docker Desktop hosts, which have no DRM render node.
 exec /usr/bin/vncserver -fg :5 \
   -geometry 1600x1000 -depth 24 \
+  -rendernode "" \
   -AcceptSetDesktopSize \
   -SecurityTypes None -localhost yes \
   -xstartup /workspace/.config/tigervnc/xstartup
