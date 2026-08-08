@@ -2,7 +2,9 @@
 # PID1 entrypoint: seed workspace, secrets, then exec systemd.
 set -e
 
-WEB_USER="${WEB_USER:-user}"
+# Fixed, matching the Dockerfile: the control plane (DEVBOX_USER), the systemd
+# units and /run/user/1000 all assume this account.
+WEB_USER=user
 
 # ---- ensure user + home ----
 id "$WEB_USER" >/dev/null 2>&1 || {

@@ -82,16 +82,13 @@ npm run build     # tsc -b && vite build
 
 ## Docker-in-Docker
 
-`dockerd` runs as a systemd service, listening on `unix:///var/run/docker.sock` and
-`tcp://0.0.0.0:2375` (container-local). `user` is in the `docker` group, so no sudo needed:
+`dockerd` runs as a systemd service, listening on `unix:///var/run/docker.sock` (no
+TCP listener). `user` is in the `docker` group, so no sudo needed:
 
 ```bash
 docker run --rm hello-world
 docker compose version      # v2 plugin
 ```
-
-Port 2375 is unauthenticated. It is not published by `scripts/run.sh`; keep it that way unless you
-add TLS.
 
 ## Preinstalled
 
@@ -108,7 +105,7 @@ add TLS.
 
 | Unit                  | Port           | Notes                                |
 | --------------------- | -------------- | ------------------------------------ |
-| `docker.service`      | 2375, unix sock| DinD (vfs storage driver)            |
+| `docker.service`      | unix sock     | DinD (vfs storage driver)            |
 | `vnc.service`         | 5901           | Xvnc + Plasma, runs as `user`        |
 | `websockify.service`  | 6080           | noVNC static + WS bridge → 5901      |
 | `cockpit.socket`      | 9090           | `UrlRoot=/cockpit/`                  |
