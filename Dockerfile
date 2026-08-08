@@ -124,7 +124,7 @@ RUN printf '{"storage-driver":"vfs"}\n' > /etc/docker/daemon.json
 # The exit signal is plain SIGTERM: supervisord (PID1) forwards it to the
 # supervised programs and waits for them to stop gracefully.
 STOPSIGNAL SIGTERM
-EXPOSE 8080
+EXPOSE 9080
 
 VOLUME ["/workspace"]
 

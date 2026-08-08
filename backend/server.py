@@ -18,7 +18,7 @@ import urllib.parse
 
 USER = os.environ.get("DEVBOX_USER", "user")
 HOST = os.environ.get("DEVBOX_BIND", "127.0.0.1")
-PORT = int(os.environ.get("DEVBOX_PORT", "3100"))
+PORT = int(os.environ.get("DEVBOX_PORT", "9102"))
 SESSION_TTL = 60 * 60 * 12  # 12h
 
 # Feature groups: id -> (name, [supervisor programs], protected)

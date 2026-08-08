@@ -47,7 +47,7 @@ the workspace) and supervises one program per service under
 ```bash
 docker run -d --name devbox \
   --privileged \
-  -p 8080:8080 \
+  -p 8080:9080 \
   -v devbox-workspace:/workspace \
   --tmpfs /tmp \
   -e WEB_USER=user \
@@ -115,13 +115,17 @@ docker compose version      # v2 plugin
 | Program       | Port           | Notes                                |
 | ------------- | -------------- | ------------------------------------ |
 | `docker`      | unix sock     | DinD (vfs storage driver)            |
-| `vnc`         | 5901           | Xvnc + Plasma, runs as `user`        |
-| `websockify`  | 6080           | noVNC static + WS bridge → 5901      |
-| `openchamber` | 3000 (loopback) | no `--lan`; nginx PAM-gates it     |
-| `code-server` | 3001 (loopback) | VS Code web, routed `/code/`      |
-| `devbox-api`  | 3100 (loopback) | control plane: PAM, sessions, supervisor |
-| `nginx`       | 8080           | published gateway                    |
+| `vnc`         | 5905           | Xvnc + Plasma (display :5), runs as `user` |
+| `websockify`  | 9103           | noVNC static + WS bridge → 5905      |
+| `openchamber` | 9100 (loopback) | no `--lan`; nginx PAM-gates it     |
+| `code-server` | 9101 (loopback) | VS Code web, routed `/code/`      |
+| `devbox-api`  | 9102 (loopback) | control plane: PAM, sessions, supervisor |
+| `nginx`       | 9080           | gateway; published as 8080 on the host |
 | `dbus`        | —              | system message bus (infrastructure)  |
+
+Internal services sit on high ports (9100–9103, nginx 9080, VNC 5905) so a dev
+server you run inside the box (vite 5173, next/react 3000, spring 8080, …) never
+collides with them.
 
 Inspect them the usual way:
 

@@ -19,7 +19,7 @@ case "$cmd" in
     docker run -d \
       --name "$NAME" \
       --privileged \
-      -p "${PORT}:8080" \
+      -p "${PORT}:9080" \
       -v "${VOLUME}:/workspace" \
       --tmpfs /tmp \
       "$IMAGE"
