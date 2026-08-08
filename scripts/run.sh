@@ -19,11 +19,9 @@ case "$cmd" in
     docker run -d \
       --name "$NAME" \
       --privileged \
-      --cgroupns=host \
       -p "${PORT}:8080" \
-      -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
       -v "${VOLUME}:/workspace" \
-      --tmpfs /run --tmpfs /run/lock --tmpfs /tmp \
+      --tmpfs /tmp \
       "$IMAGE"
     echo "DevBox up  ->  http://localhost:${PORT}"
     echo "First visit: set password at /ui/setup, then log in at /ui/login (user: user)"

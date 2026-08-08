@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Cable, MonitorPlay, Terminal, Gauge } from "lucide-react";
+import { Cable, MonitorPlay, Terminal } from "lucide-react";
 
 export interface ToolDef {
   id: string;
@@ -33,14 +33,6 @@ export const TOOLS: ToolDef[] = [
     description: "Dedicated web shell (ttyd) as your user.",
     icon: Terminal,
     url: "/terminal/",
-    embed: true,
-  },
-  {
-    id: "cockpit",
-    name: "Cockpit",
-    description: "System admin, services, logs and a web terminal.",
-    icon: Gauge,
-    url: "/cockpit/",
     embed: true,
   },
 ];

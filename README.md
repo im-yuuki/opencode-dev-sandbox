@@ -1,7 +1,7 @@
 # DevBox
 
-Debian Trixie container with systemd, KDE Plasma 6 over noVNC, Cockpit (web admin +
-terminal), OpenChamber/opencode, and Docker-in-Docker. Everything reachable through a
+Debian Trixie container with supervisord as PID1 (no systemd), KDE Plasma 6 over
+noVNC, OpenChamber/opencode, and Docker-in-Docker. Everything reachable through a
 single HTTP port behind one PAM-backed login.
 
 ## Quick start
@@ -21,36 +21,44 @@ Open <http://localhost:8080/ui/>. First visit: set the account password at
 | `/`                   | OpenChamber           | nginx auth_request (session)  |
 | `/vnc/`               | KDE desktop (noVNC)   | nginx auth_request            |
 | `/terminal/`          | web terminal (ttyd)   | nginx auth_request            |
-| `/cockpit/`           | Cockpit               | nginx auth_request + own login|
 | `/api/`               | control plane (PAM)   | session cookie                |
 
-The dashboard toggles systemd services (stop/start/restart) and links tools; the
-VNC server itself uses `SecurityTypes=None` and binds only to loopback. The
+The dashboard toggles supervised services (stop/start/restart) and links tools;
+the VNC server itself uses `SecurityTypes=None` and binds only to loopback. The
 container's only published port is `8080`.
 
 Services are grouped by user-facing feature (`/api/v1/services` returns groups);
-a group action applies to all of its units, so paired features stay consistent —
-e.g. Desktop (Plasma) toggles `vnc.service` (Xvnc + Plasma) together with its
-`websockify.service` noVNC bridge. `nginx` (gateway) and the control plane are
+a group action applies to all of its programs, so paired features stay consistent —
+e.g. Desktop (Plasma) toggles `vnc` (Xvnc + Plasma) together with its
+`websockify` noVNC bridge. `nginx` (gateway) and the control plane are
 protected: the UI cannot stop them, and the API rejects it with 403, because
 shutting the gateway/auth down locks everyone out of the box.
+
+## Process model
+
+`supervisord` runs as PID 1 (started by `scripts/entrypoint.sh` after it seeds
+the workspace) and supervises one program per service under
+`/etc/supervisor/conf.d/`. Child stdout/stderr go to `/dev/stdout`, so
+`docker logs` shows everything. There is no systemd: no `systemctl`, no
+`journalctl`, no cgroup bookkeeping in the container.
 
 ## Run manually
 
 ```bash
 docker run -d --name devbox \
-  --privileged --cgroupns=host \
+  --privileged \
   -p 8080:8080 \
-  -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
   -v devbox-workspace:/workspace \
-  --tmpfs /run --tmpfs /run/lock --tmpfs /tmp \
+  --tmpfs /tmp \
   -e WEB_USER=user \
   devbox
 ```
 
-`--privileged` is required twice over: systemd needs it to boot as PID 1, and the nested
-`dockerd` needs it to create containers. The container has full access to the host kernel,
-so treat it as trusted-workload-only and do not expose port 8080 to an untrusted network.
+`--privileged` is needed only for the nested `dockerd` (it creates containers
+and manages iptables); the control plane and all other services run
+unprivileged in the container. The container still has full access to the host
+kernel, so treat it as trusted-workload-only and do not expose port 8080 to an
+untrusted network.
 
 ## The `user` account
 
@@ -58,7 +66,6 @@ so treat it as trusted-workload-only and do not expose port 8080 to an untrusted
 - groups `sudo` (NOPASSWD via `/etc/sudoers.d/99-nopasswd`) and `docker`
 - created locked; password is chosen on first visit via `/ui/setup`
   (PAM + `chpasswd`), which also seeds the session cookie
-- Cockpit uses the same account/password (`user` / whatever was set)
 
 Get a shell:
 
@@ -82,8 +89,8 @@ npm run build     # tsc -b && vite build
 
 ## Docker-in-Docker
 
-`dockerd` runs as a systemd service, listening on `unix:///var/run/docker.sock` (no
-TCP listener). `user` is in the `docker` group, so no sudo needed:
+`dockerd` runs as a supervised program, listening on `unix:///var/run/docker.sock`
+(no TCP listener). `user` is in the `docker` group, so no sudo needed:
 
 ```bash
 docker run --rm hello-world
@@ -103,22 +110,23 @@ docker compose version      # v2 plugin
 
 ## Services
 
-| Unit                  | Port           | Notes                                |
-| --------------------- | -------------- | ------------------------------------ |
-| `docker.service`      | unix sock     | DinD (vfs storage driver)            |
-| `vnc.service`         | 5901           | Xvnc + Plasma, runs as `user`        |
-| `websockify.service`  | 6080           | noVNC static + WS bridge → 5901      |
-| `cockpit.socket`      | 9090           | `UrlRoot=/cockpit/`                  |
-| `openchamber.service` | 3000 (loopback) | no `--lan`; nginx PAM-gates it     |
-| `ttyd.service`        | 7681 (loopback) | web terminal, routed `/terminal/`  |
-| `devbox-api.service`  | 3100 (loopback) | control plane: PAM, sessions, systemd |
-| `nginx.service`       | 8080           | published gateway                    |
+| Program       | Port           | Notes                                |
+| ------------- | -------------- | ------------------------------------ |
+| `docker`      | unix sock     | DinD (vfs storage driver)            |
+| `vnc`         | 5901           | Xvnc + Plasma, runs as `user`        |
+| `websockify`  | 6080           | noVNC static + WS bridge → 5901      |
+| `openchamber` | 3000 (loopback) | no `--lan`; nginx PAM-gates it     |
+| `ttyd`        | 7681 (loopback) | web terminal, routed `/terminal/`  |
+| `devbox-api`  | 3100 (loopback) | control plane: PAM, sessions, supervisor |
+| `nginx`       | 8080           | published gateway                    |
+| `dbus`        | —              | system message bus (infrastructure)  |
 
 Inspect them the usual way:
 
 ```bash
-docker exec -it devbox systemctl status vnc.service
-docker exec -it devbox journalctl -u openchamber -f
+docker exec -it devbox supervisorctl status
+docker exec -it devbox supervisorctl status vnc
+docker logs -f devbox
 ```
 
 ## Persistence
@@ -137,4 +145,4 @@ missing, so mounting an empty volume still gives a working desktop session.
 | --------- | ------- | --------------------- |
 | `WEB_USER`| `user`  | account name          |
 
-Screen size lives in `etc/systemd/system/vnc.service` (`-geometry 1600x1000`).
+Screen size lives in `scripts/vnc-run.sh` (`-geometry 1600x1000`).

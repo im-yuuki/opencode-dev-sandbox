@@ -3,9 +3,9 @@
 
 Single-process ThreadingHTTPServer bound to 127.0.0.1, used by nginx as:
   * a PAM authentication + session backend (replaces HTTP basic auth)
-  * a systemd service-toggling control API.
+  * a supervisor service-toggling control API.
 
-Runs as root so it can read /etc/shadow (PAM) and drive systemctl.
+Runs as root so it can read /etc/shadow (PAM) and drive supervisorctl.
 """
 import http.server
 import json
@@ -21,22 +21,21 @@ HOST = os.environ.get("DEVBOX_BIND", "127.0.0.1")
 PORT = int(os.environ.get("DEVBOX_PORT", "3100"))
 SESSION_TTL = 60 * 60 * 12  # 12h
 
-# Feature groups: id -> (name, [systemd units], protected)
+# Feature groups: id -> (name, [supervisor programs], protected)
 # Services the user cannot turn off (the gateway and the auth control plane)
 # are protected; toggling one would lock everyone out of the box.
-# Desktop = one feature: Xvnc + Plasma (vnc.service) toggled together with its
-# noVNC bridge (websockify.service) so the pair stays consistent.
+# Desktop = one feature: Xvnc + Plasma (vnc) toggled together with its
+# noVNC bridge (websockify) so the pair stays consistent.
 GROUPS = {
     "desktop": (
         "Desktop (Plasma)",
-        [("vnc.service", "Xvnc + Plasma"), ("websockify.service", "noVNC bridge")],
+        [("vnc", "Xvnc + Plasma"), ("websockify", "noVNC bridge")],
         False,
     ),
-    "terminal": ("Web terminal (ttyd)", [("ttyd.service", "ttyd")], False),
-    "openchamber": ("OpenChamber", [("openchamber.service", "opencode UI")], False),
-    "cockpit": ("Cockpit admin", [("cockpit.socket", "web admin")], False),
-    "docker": ("Docker (DinD)", [("docker.service", "nested daemon")], False),
-    "gateway": ("Web gateway (nginx)", [("nginx.service", "nginx")], True),
+    "terminal": ("Web terminal (ttyd)", [("ttyd", "ttyd")], False),
+    "openchamber": ("OpenChamber", [("openchamber", "opencode UI")], False),
+    "docker": ("Docker (DinD)", [("docker", "nested daemon")], False),
+    "gateway": ("Web gateway (nginx)", [("nginx", "nginx")], True),
 }
 # Control plane itself is never listed/toggled (auth depends on it).
 ACTIONS = {"start", "stop", "restart"}
@@ -113,14 +112,25 @@ def drop_session(token):
         sessions.pop(token, None)
 
 
-# ---------------- systemd ----------------
-def is_active(unit: str) -> bool:
-    r = subprocess.run(["systemctl", "is-active", unit], capture_output=True, text=True)
-    return r.returncode == 0
+# ---------------- supervisor ----------------
+SUPERVISORCTL = ["supervisorctl", "-c", "/etc/supervisor/supervisord.conf"]
 
 
-def systemctl_action(unit: str, action: str) -> bool:
-    r = subprocess.run(["systemctl", action, unit], capture_output=True, text=True)
+def is_active(prog: str) -> bool:
+    r = subprocess.run(
+        [*SUPERVISORCTL, "status", prog], capture_output=True, text=True
+    )
+    return r.returncode == 0 and "RUNNING" in r.stdout
+
+
+def svc_action(prog: str, action: str) -> bool:
+    # Idempotent: starting a running program (or stopping a stopped one) is a
+    # no-op success, mirroring systemctl's behavior.
+    if action == "start" and is_active(prog):
+        return True
+    if action == "stop" and not is_active(prog):
+        return True
+    r = subprocess.run([*SUPERVISORCTL, action, prog], capture_output=True, text=True)
     return r.returncode == 0
 
 
@@ -205,8 +215,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         "name": name,
                         "protected": protected,
                         "members": [
-                            {"unit": unit, "name": label, "running": is_active(unit)}
-                            for unit, label in members
+                            {"unit": prog, "name": label, "running": is_active(prog)}
+                            for prog, label in members
                         ],
                     }
                 )
@@ -260,15 +270,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _, members, protected = GROUPS[gid]
             if protected:
                 return self._send({"error": "protected service"}, 403)
-            for unit, _ in members:
-                if not systemctl_action(unit, action):
+            for prog, _ in members:
+                if not svc_action(prog, action):
                     return self._send(
-                        {"error": f"systemctl {action} {unit} failed"}, 500
+                        {"error": f"supervisorctl {action} {prog} failed"}, 500
                     )
             return self._send(
                 {
                     "id": gid,
-                    "running": all(is_active(u) for u, _ in members),
+                    "running": all(is_active(p) for p, _ in members),
                 }
             )
 

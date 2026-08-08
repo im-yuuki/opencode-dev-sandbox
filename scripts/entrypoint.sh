@@ -1,9 +1,9 @@
 #!/bin/bash
-# PID1 entrypoint: seed workspace, secrets, then exec systemd.
+# PID1 entrypoint: seed workspace, secrets, then exec supervisord.
 set -e
 
-# Fixed, matching the Dockerfile: the control plane (DEVBOX_USER), the systemd
-# units and /run/user/1000 all assume this account.
+# Fixed, matching the Dockerfile: the control plane (DEVBOX_USER), the
+# supervisor programs and /run/user/1000 all assume this account.
 WEB_USER=user
 
 # ---- ensure user + home ----
@@ -43,20 +43,12 @@ su -s /bin/bash "$WEB_USER" -c '
   fi
 '
 
-# ---- cockpit.conf (proxy-aware, url root, any http origin) ----
-cat > /etc/cockpit/cockpit.conf <<EOF
-[WebService]
-Origins = http://localhost:8080 http://127.0.0.1:8080 ws://localhost:8080 ws://127.0.0.1:8080
-ProtocolHeader = X-Forwarded-Proto
-UrlRoot = /cockpit/
-AllowUnencrypted = true
-LoginTo = false
-EOF
-
 # ---- ensure runtime dirs for services ----
 mkdir -p /run/user/1000
 chown "$WEB_USER:$WEB_USER" /run/user/1000
 chmod 700 /run/user/1000
-mkdir -p /var/run/nginx /run/cockpit
+mkdir -p /run/dbus
+chown messagebus:messagebus /run/dbus
+mkdir -p /var/run/nginx
 
-exec /sbin/init "$@"
+exec /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf "$@"

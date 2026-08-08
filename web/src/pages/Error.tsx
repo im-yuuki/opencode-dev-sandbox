@@ -46,7 +46,7 @@ const ERRORS: Record<number, ErrorDef> = {
   },
   500: {
     title: "Server error",
-    detail: "A service failed while handling the request. Check its logs in Cockpit.",
+    detail: "A service failed while handling the request. Check the container logs.",
     icon: ServerCrash,
   },
   502: {

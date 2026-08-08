@@ -53,11 +53,12 @@ RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/g
 RUN apt-get update
 
 # node runtime (bundles npm), python control plane, base system + dev toolchain,
-# KDE Plasma (slim), VNC/noVNC, Google Chrome, Cockpit, Docker CE (DinD).
+# KDE Plasma (slim), VNC/noVNC, Google Chrome, Docker CE (DinD).
+# supervisor is PID1 (no systemd); dbus provides the system message bus.
 RUN apt-get install -y --no-install-recommends \
-    nodejs python3 python3-pamela python3-pip python3-venv systemd systemd-sysv locales tzdata sudo git vim htop jq unzip zip p7zip-full build-essential cmake \
+    nodejs python3 python3-pamela python3-pip python3-venv supervisor dbus locales tzdata sudo git vim htop jq unzip zip p7zip-full build-essential cmake \
     openssl nginx plasma-desktop kwin-x11 dolphin konsole systemsettings kate dbus-x11 x11-xserver-utils xauth \
-    tigervnc-standalone-server novnc websockify google-chrome-stable fonts-liberation cockpit cockpit-system cockpit-ws \
+    tigervnc-standalone-server novnc websockify google-chrome-stable fonts-liberation \
     docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 RUN rm -rf /var/lib/apt/lists/*
@@ -81,8 +82,8 @@ RUN opencode --version
 RUN openchamber --version
 
 # ---- user account (home = /workspace, password set on first web visit) ----
-# The name is fixed: the control plane, systemd units and nginx all assume
-# uid 1000 / "user", so making it configurable only invited drift.
+# The name is fixed: the control plane, supervisor programs and nginx all
+# assume uid 1000 / "user", so making it configurable only invited drift.
 RUN useradd -m -u 1000 -G docker,sudo -s /bin/bash user
 
 RUN usermod -d /workspace user
@@ -101,8 +102,9 @@ COPY backend/ /opt/devbox/backend/
 COPY etc/ /etc/
 COPY xstartup /usr/share/devbox/xstartup
 COPY scripts/entrypoint.sh /usr/local/sbin/entrypoint.sh
+COPY scripts/vnc-run.sh /usr/local/sbin/vnc-run.sh
 
-RUN chmod +x /usr/local/sbin/entrypoint.sh
+RUN chmod +x /usr/local/sbin/entrypoint.sh /usr/local/sbin/vnc-run.sh
 
 RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
 
@@ -113,16 +115,9 @@ RUN mkdir -p /etc/docker
 RUN printf '{"storage-driver":"vfs"}\n' > /etc/docker/daemon.json
 
 # dockerd keeps its stock listener — unix socket only, no 0.0.0.0:2375.
-
-# ---- systemd enable + mask ----
-# `|| true` is deliberate: these fail harmlessly under builders that cannot run
-# systemctl, and the build must not die on them.
-RUN systemctl set-default graphical.target || true
-
-RUN systemctl enable docker.service cockpit.socket nginx.service openchamber.service vnc.service websockify.service ttyd.service devbox-api.service || true
-
-RUN systemctl mask systemd-networkd systemd-resolved systemd-hostnamed getty@tty1.service console-getty.service || true
-
+# The exit signal is plain SIGTERM: supervisord (PID1) forwards it to the
+# supervised programs and waits for them to stop gracefully.
+STOPSIGNAL SIGTERM
 EXPOSE 8080
 
 VOLUME ["/workspace"]
