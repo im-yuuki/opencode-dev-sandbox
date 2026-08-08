@@ -7,15 +7,27 @@ reachable through a single HTTPS port behind one PAM-backed login.
 ## Quick start
 
 ```bash
-./scripts/run.sh build
-./scripts/run.sh run
+docker build -t devbox .
+docker run -d --name devbox --privileged --security-opt seccomp=unconfined -p 8080:9080 -v devbox-workspace:/workspace --tmpfs /tmp devbox
 ```
 
-Open <https://localhost:8080/launcher/> (8080 is `run.sh`'s default host port;
-override with `PORT=… ./scripts/run.sh run`). The gateway is HTTPS with a
+Open <https://localhost:8080/launcher/> (8080 is the host port mapped to the
+gateway's 9080; override with `-p <port>:9080`). The gateway is HTTPS with a
 self-signed certificate generated on first boot, so the browser shows a warning
 once — accept it. First visit: the login page shows the password-setup form
 directly (Linux PAM against the container account).
+
+`--security-opt seccomp=unconfined` is what lets Chrome start. Its zygote calls
+`clone(CLONE_NEWUSER)`, which Docker's default seccomp profile blocks for
+unprivileged processes — `--privileged` alone does not lift it, and Chrome dies
+with `Failed to move to new namespace … Operation not permitted`. With the flag,
+Chrome keeps its own sandbox instead of needing `--no-sandbox`. If it still
+fails, the host disallows unprivileged user namespaces:
+
+```bash
+sysctl kernel.unprivileged_userns_clone        # Debian/Ubuntu hosts
+sudo sysctl -w kernel.unprivileged_userns_clone=1
+```
 
 | Path                  | Service               | Auth                          |
 | --------------------- | --------------------- | ----------------------------- |
@@ -108,7 +120,7 @@ port to an untrusted network.
 Get a shell:
 
 ```bash
-./scripts/run.sh sh          # or: docker exec -it devbox su - user
+docker exec -it devbox bash -lc 'su - user'
 ```
 
 ## Frontend source
@@ -185,8 +197,8 @@ missing, so mounting an empty volume still gives a working desktop session.
 
 The dashboard's enabled applications survive restarts too: the control plane
 records them in `/workspace/.devbox/apps.json` and starts them again whenever it
-boots, so `docker restart` (or `run.sh`'s rm + run on the same volume) keeps
-your current set of apps running.
+boots, so `docker restart` (or `docker rm -f` + `docker run` again on the same
+volume) keeps your current set of apps running.
 
 ## Configuration
 

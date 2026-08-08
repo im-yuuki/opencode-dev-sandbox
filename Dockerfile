@@ -50,7 +50,8 @@ RUN apt-get update
 RUN apt-get install -y --no-install-recommends \
     nodejs python3 python3-pamela python3-pip python3-venv supervisor dbus locales tzdata sudo git vim htop fastfetch jq unzip zip p7zip-full build-essential cmake \
     openssl nginx plasma-desktop kwin-x11 dolphin konsole systemsettings kate dbus-x11 x11-xserver-utils xauth \
-    tigervnc-standalone-server novnc websockify google-chrome-stable fonts-liberation \
+    tigervnc-standalone-server novnc websockify google-chrome-stable \
+    fonts-liberation fonts-dejavu-core fonts-noto-core \
     docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 RUN rm -rf /var/lib/apt/lists/*

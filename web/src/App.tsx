@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { Routes, Route, Navigate, useLocation, useSearchParams } from "react-router";
+import { Routes, Route, Navigate, useLocation } from "react-router";
 import { Spinner } from "@heroui/react";
 import { api, type BootInfo } from "./api";
 import { LoginPage } from "./pages/Login";
@@ -39,24 +39,10 @@ function RequireAuth({
   gate: { boot: BootInfo };
   children: ReactNode;
 }) {
-  const loc = useLocation();
   if (!gate.boot.authed) {
-    return <Navigate to="/login" replace state={{ from: loc.pathname }} />;
+    return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
-}
-
-// An already-signed-in visitor on /login still owes the `next` hop that the
-// 401 page attached, otherwise a session that revived mid-flow strands them on
-// the dashboard instead of the tool they asked for.
-function PostLogin() {
-  const [params] = useSearchParams();
-  const next = params.get("next");
-  if (next && next.startsWith("/") && !next.startsWith("//")) {
-    window.location.replace(next);
-    return null;
-  }
-  return <Navigate to="/" replace />;
 }
 
 export function App() {
@@ -83,12 +69,14 @@ export function App() {
   return (
     <Routes>
       {/* First visit has no password yet: /login renders the setup form
-          inline instead of bouncing to a separate page. */}
+          inline instead of bouncing to a separate page. An already-signed-in
+          visitor has nothing to do here and goes to the dashboard, same as a
+          fresh sign-in. */}
       <Route
         path="/login"
         element={
           gate.boot.authed ? (
-            <PostLogin />
+            <Navigate to="/" replace />
           ) : (
             <LoginPage needsSetup={gate.boot.needsSetup} user={gate.boot.user ?? "user"} />
           )

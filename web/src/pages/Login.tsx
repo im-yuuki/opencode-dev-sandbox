@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useLocation, useSearchParams } from "react-router";
 import {
   Button,
   Description,
@@ -27,8 +26,6 @@ export function LoginPage({
   needsSetup: boolean;
   user: string;
 }) {
-  const loc = useLocation() as { state?: { from?: string } };
-  const [params] = useSearchParams();
   // needsSetup comes from the boot gate; switching mid-flight keeps the form
   // usable if the backend disagrees (e.g. a session that revived between calls).
   const [setupMode, setSetupMode] = useState(needsSetup);
@@ -39,15 +36,12 @@ export function LoginPage({
   const [serverErr, setServerErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // `next` comes from the 401 page and is an absolute path outside /launcher
-  // (a proxied tool); router state carries in-app paths, which are
-  // /launcher-relative. Only same-origin paths are accepted, so the query
-  // cannot become an open redirect to another host.
-  const next = params.get("next");
-  const target =
-    next && next.startsWith("/") && !next.startsWith("//")
-      ? next
-      : `/launcher${loc.state?.from || "/"}`;
+  // Always the launcher. The 401 page's `next` and the router's `from` are
+  // deliberately ignored: a session that expired inside a tool is far more
+  // often followed by "what else is running?" than by a silent bounce back
+  // into the tool, and the dashboard is the one page guaranteed to render
+  // whatever state the box is in.
+  const target = "/launcher/";
 
   const submit: FormSubmitHandler = async (e) => {
     e.preventDefault();

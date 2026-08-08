@@ -26,12 +26,15 @@ import { TOOLS } from "../tools";
 
 function useApps() {
   const [apps, setApps] = useState<AppInfo[]>([]);
+  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
   // `tick` is the reload key: bumping it re-runs the fetch. State lands in the
   // promise callback rather than the effect body, and `alive` drops responses
-  // from a superseded run.
+  // from a superseded run. `loading` is only ever cleared, never re-armed: a
+  // refresh of an already-rendered list updates rows in place instead of
+  // flashing the spinner back under the user.
   useEffect(() => {
     let alive = true;
     void api
@@ -39,7 +42,8 @@ function useApps() {
       .then((r) => alive && setApps(r.apps))
       .catch(() => {
         /* keep last state */
-      });
+      })
+      .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
@@ -62,7 +66,7 @@ function useApps() {
     [refresh],
   );
 
-  return { apps, busyId, act, refresh };
+  return { apps, loading, busyId, act, refresh };
 }
 
 const appRunning = (a: AppInfo) =>
@@ -234,7 +238,7 @@ function AppRow({
 }
 
 export function Dashboard({ user }: { user: string }) {
-  const { apps, busyId, act, refresh } = useApps();
+  const { apps, loading, busyId, act, refresh } = useApps();
 
   // Launch: start (persists across container restarts), then open the app in
   // the launcher iframe when it has an embeddable web UI.
@@ -282,18 +286,27 @@ export function Dashboard({ user }: { user: string }) {
           <Header className="mb-2 px-0 uppercase tracking-wider">
             applications
           </Header>
-          <ul className="flex flex-col gap-2">
-            {apps.map((a) => (
-              <AppRow
-                key={a.id}
-                app={a}
-                busy={busyId === a.id}
-                onAction={(action) => void act(a, action)}
-                onRefresh={refresh}
-                onLaunch={() => launch(a)}
-              />
-            ))}
-          </ul>
+          {/* Spinner only while the list is still empty: a refresh of an
+              already-rendered list updates the rows in place, so the dashboard
+              never flashes back to a spinner under the user. */}
+          {loading && apps.length === 0 ? (
+            <div className="grid place-items-center py-16">
+              <Spinner size="lg" aria-label="loading applications" />
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {apps.map((a) => (
+                <AppRow
+                  key={a.id}
+                  app={a}
+                  busy={busyId === a.id}
+                  onAction={(action) => void act(a, action)}
+                  onRefresh={refresh}
+                  onLaunch={() => launch(a)}
+                />
+              ))}
+            </ul>
+          )}
         </section>
       </main>
     </div>

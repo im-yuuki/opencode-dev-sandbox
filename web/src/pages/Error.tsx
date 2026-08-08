@@ -83,28 +83,12 @@ function normalize(raw: string | null, fallback: number): number {
   return Number.isInteger(n) && n >= 400 && n <= 599 ? n : fallback;
 }
 
-// nginx appends `from=$request_uri` unencoded (it has no urlencode function),
-// so a tool URL carrying its own query string — /vnc/vnc.html?path=…&resize=…
-// — would be truncated at the first `&` by normal param parsing. `from` is
-// always the last parameter, so everything after it is the address verbatim.
-// Only same-origin paths are returned, which rules out an open redirect.
-function readFrom(search: string): string | null {
-  const m = /[?&]from=(.*)$/s.exec(search);
-  if (!m) return null;
-  const path = m[1];
-  return path.startsWith("/") && !path.startsWith("//") ? path : null;
-}
-
 // Rendered both as a route (/error?code=NNN, where nginx redirects gateway
 // failures) and directly with a `code` prop for in-app dead ends.
 export function ErrorPage({ code: fixed }: { code?: number } = {}) {
   const [params] = useSearchParams();
   const code = fixed ?? normalize(params.get("code"), 500);
   const { title, detail, icon: Icon } = classify(code);
-  // nginx bounces here from the proxied tools (/vnc/, /, …), which are
-  // outside the SPA's basename, so a plain <Link> could not send the user back.
-  // `from` carries that address to the login form, which does a full navigation.
-  const from = readFrom(window.location.search);
 
   return (
     <div className="grid h-screen place-items-center px-4">
@@ -121,7 +105,7 @@ export function ErrorPage({ code: fixed }: { code?: number } = {}) {
         <div className="flex flex-col gap-2">
           {code === 401 ? (
             <Link
-              to={from ? `/login?next=${encodeURIComponent(from)}` : "/login"}
+              to="/login"
               className={buttonVariants({ variant: "primary", fullWidth: true })}
             >
               <LogIn size={15} />
