@@ -11,7 +11,8 @@ reachable through a single HTTP port behind one PAM-backed login.
 ./scripts/run.sh run
 ```
 
-Open <http://localhost:8080/ui/>. First visit: set the account password at
+Open <http://localhost:8080/ui/> (8080 is `run.sh`'s default host port; override
+with `PORT=… ./scripts/run.sh run`). First visit: set the account password at
 `/ui/setup`, then log in at `/ui/login` (Linux PAM against the container account).
 
 | Path                  | Service               | Auth                          |
@@ -25,7 +26,7 @@ Open <http://localhost:8080/ui/>. First visit: set the account password at
 
 The dashboard toggles supervised services (stop/start/restart) and links tools;
 the VNC server itself uses `SecurityTypes=None` and binds only to loopback. The
-container's only published port is `8080`.
+container exposes a single port, `9080`, which you map to any host port.
 
 Services are grouped by user-facing feature (`/api/v1/services` returns groups);
 a group action applies to all of its programs, so paired features stay consistent —
@@ -45,20 +46,23 @@ the workspace) and supervises one program per service under
 ## Run manually
 
 ```bash
+# Map any free host port to the container gateway (9080):
 docker run -d --name devbox \
   --privileged \
   -p 8080:9080 \
   -v devbox-workspace:/workspace \
   --tmpfs /tmp \
-  -e WEB_USER=user \
   devbox
 ```
+
+`-p` only chooses the published host port; nothing inside the box redirects to
+port 9080, so any host port works (`-p 12345:9080`).
 
 `--privileged` is needed only for the nested `dockerd` (it creates containers
 and manages iptables); the control plane and all other services run
 unprivileged in the container. The container still has full access to the host
-kernel, so treat it as trusted-workload-only and do not expose port 8080 to an
-untrusted network.
+kernel, so treat it as trusted-workload-only and do not expose the published
+port to an untrusted network.
 
 ## The `user` account
 
@@ -120,7 +124,7 @@ docker compose version      # v2 plugin
 | `openchamber` | 9100 (loopback) | no `--lan`; nginx PAM-gates it     |
 | `code-server` | 9101 (loopback) | VS Code web, routed `/code/`      |
 | `devbox-api`  | 9102 (loopback) | control plane: PAM, sessions, supervisor |
-| `nginx`       | 9080           | gateway; published as 8080 on the host |
+| `nginx`       | 9080           | gateway; map any host port to it     |
 | `dbus`        | —              | system message bus (infrastructure)  |
 
 Internal services sit on high ports (9100–9103, nginx 9080, VNC 5905) so a dev
