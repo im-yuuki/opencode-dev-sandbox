@@ -67,7 +67,7 @@ RUN npm install -g "cloudcmd@${CLOUDCMD_VERSION}" --no-audit --no-fund
 
 # ============ code-server ============
 ARG CODE_SERVER_VERSION=4.131.0
-RUN curl -fsSL -o /tmp/code-server.tar.gz "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-$(dpkg --print-architecture).tar.gz" && tar -xzf /tmp/code-server.tar.gz -C /usr/local/lib && mv "/usr/local/lib/code-server-${CODE_SERVER_VERSION}-linux-$(dpkg --print-architecture)" /usr/local/lib/code-server && ln -s /usr/local/lib/code-server/bin/code-server /usr/local/bin/code-server && rm /tmp/code-server.tar.gz
+RUN curl -fsSL -o /tmp/code-server.tar.gz "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-$(dpkg --print-architecture).tar.gz" && tar -xzf /tmp/code-server.tar.gz -C /usr/local/lib && mv "/usr/local/lib/code-server-${CODE_SERVER_VERSION}-linux-$(dpkg --print-architecture)" /usr/local/lib/code-server && rm /tmp/code-server.tar.gz
 
 # ============ user account ============
 RUN useradd -m -u 1000 -G sudo -s /bin/bash user
@@ -90,7 +90,8 @@ COPY xstartup /usr/share/devbox/xstartup
 COPY scripts/entrypoint.sh /usr/local/sbin/entrypoint.sh
 COPY scripts/vnc-run.sh /usr/local/sbin/vnc-run.sh
 COPY scripts/google-chrome-stable /usr/local/bin/google-chrome-stable
-RUN chmod +x /usr/local/sbin/entrypoint.sh /usr/local/sbin/vnc-run.sh /usr/local/bin/google-chrome-stable
+COPY scripts/code-server /usr/local/bin/code-server
+RUN chmod +x /usr/local/sbin/entrypoint.sh /usr/local/sbin/vnc-run.sh /usr/local/bin/google-chrome-stable /usr/local/bin/code-server
 RUN sed -i 's|Exec=/usr/bin/google-chrome-stable|Exec=/usr/local/bin/google-chrome-stable|g' /usr/share/applications/google-chrome.desktop
 RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
 

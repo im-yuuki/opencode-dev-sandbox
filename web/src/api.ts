@@ -110,8 +110,6 @@ export const api = {
     }).then(j<{ user: string }>),
   logout: () => fetch("/launcher/api/v1/logout", { method: "POST", credentials: "include" }).then(j<Record<string, never>>),
   services: () => fetch("/launcher/api/v1/services", { credentials: "include" }).then(j<ApiApps>),
-  metrics: (signal?: AbortSignal) =>
-    fetch("/launcher/api/v1/metrics", { credentials: "include", signal }).then(j<SystemMetricsResponse>),
   serviceAction: (id: string, action: "start" | "stop" | "restart") =>
     fetch(`/launcher/api/v1/services/${encodeURIComponent(id)}/${action}`, {
       method: "POST",

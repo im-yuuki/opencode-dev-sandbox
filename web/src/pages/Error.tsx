@@ -99,7 +99,7 @@ export function ErrorPage({ code: fixed }: { code?: number } = {}) {
               <Icon size={24} />
             </Avatar.Fallback>
           </Avatar>
-          <Card.Title>{title}</Card.Title>
+          <Card.Title className="font-extrabold text-lg">{title}</Card.Title>
         </Card.Header>
 
         <Card.Content>

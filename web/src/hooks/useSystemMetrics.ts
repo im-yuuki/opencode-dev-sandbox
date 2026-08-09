@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type SystemMetricsResponse } from "../api";
+import type { SystemMetricsResponse } from "../api";
 
 export interface MetricsSample {
   /** Client timestamp (ms) used as the sliding-window X axis. */
@@ -43,8 +43,10 @@ export interface MetricsSample {
 
 export type MetricsStatus = "loading" | "ready" | "stale" | "error";
 
-const POLL_MS = 3000;
 const WINDOW_MS = 60_000;
+const STREAM_URL = "/launcher/api/v1/metrics/stream";
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 15_000;
 
 interface PrevCounters {
   monotonic: number;
@@ -53,14 +55,12 @@ interface PrevCounters {
 }
 
 /**
- * Polls /api/v1/metrics every 3s, derives CPU % and network rates from
- * cumulative deltas, and keeps a one-minute sliding window of samples.
+ * Receives a metrics snapshot every 3s over SSE, derives CPU % and network
+ * rates from cumulative deltas, and keeps a one-minute sliding window.
  *
- * - Only one request may be in flight; slow responses are simply skipped.
- * - Timer + request are torn down on unmount (React StrictMode-safe) via an
- *   AbortController and an `alive` flag.
- * - A failed request never wipes the last sample: the dashboard flags the
- *   data as stale instead of flashing errors under the user.
+ * - Disconnects use bounded exponential backoff and reconnect automatically.
+ * - The EventSource and retry timer are torn down on unmount (StrictMode-safe).
+ * - A disconnect never wipes the last sample: the dashboard marks it stale.
  */
 export function useSystemMetrics() {
   const [sample, setSample] = useState<MetricsSample | null>(null);
@@ -71,59 +71,82 @@ export function useSystemMetrics() {
 
   useEffect(() => {
     let alive = true;
-    let inFlight = false;
-    const controller = new AbortController();
+    let hasSample = false;
+    let reconnectAttempt = 0;
+    let reconnectTimer: number | null = null;
+    let source: EventSource | null = null;
 
-    const tick = async () => {
-      if (inFlight) return;
-      inFlight = true;
-      try {
-        const r = await api.metrics(controller.signal);
-        if (!alive) return;
-        const at = Date.now();
+    function scheduleReconnect() {
+      if (!alive || reconnectTimer != null) return;
+      const exponential = Math.min(
+        RECONNECT_BASE_MS * 2 ** reconnectAttempt,
+        RECONNECT_MAX_MS,
+      );
+      const delay = exponential + Math.floor(Math.random() * 250);
+      reconnectAttempt += 1;
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
+    }
 
-        const prev = prevCounters.current;
-        prevCounters.current = {
-          monotonic: r.monotonic,
-          cpuUsageNs: r.cpu?.usageNs ?? null,
-          network: r.network
-            ? {
-                rxBytes: r.network.rxBytes,
-                txBytes: r.network.txBytes,
-                interfaces: r.network.interfaces,
-              }
-            : null,
-        };
+    function connect() {
+      if (!alive || source) return;
+      const connection = new EventSource(STREAM_URL, { withCredentials: true });
+      source = connection;
 
-        const next = deriveSample(r, prev, at);
-        setSample(next);
-        setHistory((old) =>
-          [...old, next].filter((p) => at - p.at <= WINDOW_MS).slice(-120),
-        );
-        setLastUpdated(at);
-        setStatus("ready");
-      } catch (err) {
-        if (
-          !alive ||
-          (err instanceof DOMException && err.name === "AbortError")
-        ) {
-          return;
+      connection.addEventListener("metrics", (event) => {
+        if (!alive || source !== connection) return;
+        try {
+          const r = JSON.parse(
+            (event as MessageEvent<string>).data,
+          ) as SystemMetricsResponse;
+          const at = Date.now();
+
+          const prev = prevCounters.current;
+          prevCounters.current = {
+            monotonic: r.monotonic,
+            cpuUsageNs: r.cpu?.usageNs ?? null,
+            network: r.network
+              ? {
+                  rxBytes: r.network.rxBytes,
+                  txBytes: r.network.txBytes,
+                  interfaces: r.network.interfaces,
+                }
+              : null,
+          };
+
+          const nextSample = deriveSample(r, prev, at);
+          setSample(nextSample);
+          setHistory((old) =>
+            [...old, nextSample]
+              .filter((p) => at - p.at <= WINDOW_MS)
+              .slice(-120),
+          );
+          setLastUpdated(at);
+          setStatus("ready");
+          hasSample = true;
+          reconnectAttempt = 0;
+        } catch {
+          setStatus(hasSample ? "stale" : "error");
         }
-        // Keep the last good sample visible; just signal staleness.
-        setStatus((s) =>
-          s === "ready" ? "stale" : s === "loading" ? "error" : s,
-        );
-      } finally {
-        inFlight = false;
-      }
-    };
+      });
 
-    void tick();
-    const timer = window.setInterval(tick, POLL_MS);
+      connection.onerror = () => {
+        if (!alive || source !== connection) return;
+        connection.close();
+        source = null;
+        setStatus(hasSample ? "stale" : "error");
+        scheduleReconnect();
+      };
+    }
+
+    connect();
     return () => {
       alive = false;
-      controller.abort();
-      window.clearInterval(timer);
+      source?.close();
+      source = null;
+      if (reconnectTimer != null) window.clearTimeout(reconnectTimer);
     };
   }, []);
 

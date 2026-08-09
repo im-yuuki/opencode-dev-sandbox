@@ -91,7 +91,7 @@ export function LoginPage({
                 <SetupIcon size={24} />
               </Avatar.Fallback>
             </Avatar>
-            <Card.Title>
+            <Card.Title className="font-extrabold text-lg">
               {setupMode ? "Set your password" : "Sign in"}
             </Card.Title>
           </Card.Header>

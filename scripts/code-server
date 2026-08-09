@@ -1,0 +1,15 @@
+#!/bin/sh
+# Integrated terminals inherit CODE_SERVER_PARENT_PID from code-server's real
+# IPC child. A new `code-server` launched from that shell is not forked with a
+# Node IPC channel, so keeping the marker makes it abort with
+# "not spawned with IPC". The upstream check is based on presence, therefore
+# assigning an empty value is insufficient: it must be removed.
+unset CODE_SERVER_PARENT_PID
+
+# Cloud Run injects PORT for the ingress process. code-server gives that value
+# precedence over --bind-addr, which would move the internal service away from
+# 127.0.0.1:9101 (and possibly collide with nginx). nginx is the ingress here;
+# code-server must only use its explicit CLI/config address.
+unset PORT
+
+exec /usr/local/lib/code-server/bin/code-server "$@"

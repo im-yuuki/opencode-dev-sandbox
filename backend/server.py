@@ -233,6 +233,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _metrics_stream(self):
+        """Stream a metrics snapshot every three seconds as SSE.
+
+        The response is close-delimited for the stdlib HTTP server; nginx
+        turns it into a normal streamed downstream response. Authentication is
+        rechecked before every event so an expired session also closes an
+        already-open stream.
+        """
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+
+        try:
+            # Native EventSource clients may use this if they reconnect on
+            # their own; the web client additionally applies bounded backoff.
+            self.wfile.write(b"retry: 3000\n\n")
+            self.wfile.flush()
+            while self._authed_user():
+                payload = json.dumps(
+                    metrics.collect_metrics(), separators=(",", ":")
+                )
+                event = f"event: metrics\ndata: {payload}\n\n".encode()
+                self.wfile.write(event)
+                self.wfile.flush()
+                time.sleep(3)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
+            # Normal disconnect/reconnect path: the browser closed the socket.
+            pass
+
     def _cookie_token(self):
         raw = self.headers.get("Cookie", "")
         for part in raw.split(";"):
@@ -316,6 +349,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self._authed_user():
                 return self._send({"error": "unauthorized"}, 401)
             return self._send(metrics.collect_metrics())
+        if path == "/api/v1/metrics/stream":
+            if not self._authed_user():
+                return self._send({"error": "unauthorized"}, 401)
+            return self._metrics_stream()
         return self._plain("not found", 404)
 
     def do_POST(self):
