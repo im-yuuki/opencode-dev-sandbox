@@ -46,14 +46,21 @@ STATE_FILE = os.path.join(STATE_DIR, "apps.json")
 # offered Launch/Stop controls.
 # Desktop = one feature: Xvnc + LXQt (vnc) toggled together with its
 # noVNC bridge (websockify) so the pair stays consistent.
+# The "files" id predates the switch from Cloud Commander to FileBrowser
+# Quantum and is kept verbatim so an existing apps.json still restores the
+# user's enabled set; only the supervisor program behind it changed.
 APPS = {
     "agent": ("Agent", [("openchamber", "OpenCode UI + terminal")]),
-    "files": ("Files", [("cloudcmd", "Cloud Commander file manager")]),
+    "files": ("Files", [("filebrowser", "FileBrowser Quantum file manager")]),
     "desktop": (
         "Desktop",
         [("vnc", "Xvnc + LXQt"), ("websockify", "noVNC bridge")],
     ),
     "code": ("Code", [("code-server", "VS Code web")]),
+    "cliproxy": (
+        "CLI Proxy",
+        [("cliproxyapi", "CLIProxyAPI + Management Center")],
+    ),
 }
 ACTIONS = {"start", "stop", "restart"}
 

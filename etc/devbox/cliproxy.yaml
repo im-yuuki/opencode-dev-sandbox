@@ -1,0 +1,36 @@
+# CLIProxyAPI v7.2.126 -- seed config, copied to
+# /workspace/.devbox/cliproxy/config.yaml on first run only.
+#
+# After the first start CLIProxyAPI owns this file: it bcrypt-hashes the
+# plaintext management key and rewrites the config, and the Management Center
+# writes provider credentials back into it. The entrypoint therefore only ever
+# creates it, never updates it.
+
+host: "127.0.0.1"
+port: 8317
+
+tls:
+  enable: false
+
+remote-management:
+  # nginx reaches CLIProxyAPI over loopback, so remote binding is unnecessary;
+  # the management key is still required on every management request.
+  allow-remote: false
+  # Seeded once with the plaintext contents of management.key. CLIProxyAPI
+  # replaces this with a bcrypt hash on first start.
+  secret-key: "__DEVBOX_MANAGEMENT_KEY__"
+  disable-control-panel: false
+  # The panel asset is pinned and baked into the image at
+  # MANAGEMENT_STATIC_PATH; auto-update would silently pull an unpinned build.
+  disable-auto-update-panel: true
+  panel-github-repository: "https://github.com/router-for-me/Cli-Proxy-API-Management-Center"
+
+auth-dir: "/workspace/.devbox/cliproxy/auth"
+
+logging-to-file: false
+usage-statistics-enabled: false
+ws-auth: true
+
+# No api-keys are seeded on purpose. The proxy stays reachable only from
+# loopback inside the container until the user mints a key from the Management
+# Center, so an unauthenticated key is never written to the workspace.

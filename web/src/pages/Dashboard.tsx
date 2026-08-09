@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router";
 import { motion } from "framer-motion";
 import {
   Avatar,
@@ -15,7 +14,6 @@ import {
 } from "@heroui/react";
 import {
   ExternalLink,
-  Frame,
   LogOut,
   RefreshCw,
   Box,
@@ -159,32 +157,19 @@ function AppRow({
               starting it is a no-op and stopping it would take the launcher
               down with it. */}
           {isAgent ? null : running ? (
-            <>
-              <Button
-                size="sm"
-                variant="danger"
-                isDisabled={busy}
-                isPending={busy}
-                onPress={() => onAction("stop")}>
-                {({ isPending }) => (
-                  <>
-                    {isPending ? <Spinner color="current" size="sm" /> : <Square size={14} />}
-                    Stop
-                  </>
-                )}
-              </Button>
-              {meta?.embed ? (
-                <Link
-                  to={`/embed/${meta.id}`}
-                  className={buttonVariants({
-                    variant: "secondary",
-                    size: "sm",
-                  })}>
-                  <Frame size={14} />
-                  Open
-                </Link>
-              ) : null}
-            </>
+            <Button
+              size="sm"
+              variant="danger"
+              isDisabled={busy}
+              isPending={busy}
+              onPress={() => onAction("stop")}>
+              {({ isPending }) => (
+                <>
+                  {isPending ? <Spinner color="current" size="sm" /> : <Square size={14} />}
+                  Stop
+                </>
+              )}
+            </Button>
           ) : (
             <Button
               size="sm"
@@ -207,7 +192,16 @@ function AppRow({
               target="_blank"
               rel="noopener"
               aria-disabled={!canOpen}
-              title={canOpen ? "Open in New Tab" : "Please start the app first"}
+              aria-label={
+                canOpen
+                  ? `open ${meta.name} in a new tab`
+                  : `${meta.name} is stopped: start it before opening`
+              }
+              title={
+                canOpen
+                  ? `Open ${meta.name} in New Tab`
+                  : "Please start the app first"
+              }
               className={buttonVariants({
                 variant: "outline",
                 size: "sm",
@@ -215,7 +209,7 @@ function AppRow({
                   ? undefined
                   : "pointer-events-none opacity-50",
               })}>
-              <ExternalLink size={14} />
+              <ExternalLink aria-hidden size={14} />
             </a>
           ) : null}
           <Button
@@ -235,19 +229,11 @@ function AppRow({
 export function Dashboard({ user }: { user: string }) {
   const { apps, loading, busyId, act, refresh } = useApps();
 
-  // Launch: start (persists across container restarts), then open the app in
-  // the launcher iframe when it has an embeddable web UI.
-  const launch = useCallback(
-    (app: AppInfo) => {
-      void act(app, "start").then(() => {
-        const meta = TOOLS[app.id];
-        if (meta?.embed) {
-          window.location.assign(`/launcher/embed/${meta.id}`);
-        }
-      });
-    },
-    [act],
-  );
+  // Launch: start the service (the state persists across container restarts)
+  // and refresh the row. Opening the app is left to the user's "Open in New
+  // Tab" button: auto-opening trips popup blockers and races the service's
+  // own readiness.
+  const launch = useCallback((app: AppInfo) => void act(app, "start"), [act]);
 
   return (
     <div className="min-h-full">

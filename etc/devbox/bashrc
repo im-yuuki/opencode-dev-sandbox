@@ -1,0 +1,112 @@
+# Managed interactive-shell setup for the DevBox, sourced from ~/.bashrc by a
+# block the entrypoint appends once (marker: "# devbox managed shell setup").
+#
+# Everything here must be safe to source repeatedly and must lose to whatever
+# the user writes *after* the managed block in ~/.bashrc: define defaults, never
+# override. TERM is deliberately left alone -- code-server, QTerminal and plain
+# `docker exec` each supply a correct value and forcing one breaks the others.
+
+# Non-interactive shells (scp, rsync, `bash -c`) must produce no output.
+case $- in
+  *i*) ;;
+  *) return ;;
+esac
+
+# ---- history ----
+# Append rather than truncate: several terminals are normally open at once
+# (code-server, QTerminal, docker exec) and last-writer-wins loses history.
+shopt -s histappend
+shopt -s checkwinsize
+HISTCONTROL=ignoreboth
+HISTSIZE=10000
+HISTFILESIZE=20000
+
+# ---- colored prompt ----
+# Only when the terminal actually supports color; a dumb TERM would otherwise
+# get literal escape sequences. `user` is uid 1000, so no root/user distinction
+# is needed, but keep the red-on-root convention for `sudo -i`.
+if [ -z "${PS1_DEVBOX_SET-}" ] && [ -t 1 ]; then
+  if [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
+    if [ "$(id -u)" -eq 0 ]; then
+      PS1='\[\033[01;31m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]# '
+    else
+      PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]$ '
+    fi
+  else
+    PS1='\u@\h:\w\$ '
+  fi
+  PS1_DEVBOX_SET=1
+fi
+
+# ---- ls colors ----
+if command -v dircolors >/dev/null 2>&1; then
+  if [ -r "$HOME/.dircolors" ]; then
+    eval "$(dircolors -b "$HOME/.dircolors")"
+  else
+    eval "$(dircolors -b)"
+  fi
+fi
+
+# ---- color auto for the usual suspects ----
+alias ls='ls --color=auto'
+alias grep='grep --color=auto'
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias ip='ip -color=auto'
+
+# GNU diffutils gained --color in 3.4; older builds abort on the unknown flag,
+# so probe once instead of assuming.
+if diff --color=auto /dev/null /dev/null >/dev/null 2>&1; then
+  alias diff='diff --color=auto'
+fi
+
+# ---- pagers ----
+# -R keeps the ANSI sequences that git, bat and friends emit.
+export LESS='-R'
+
+# ---- Debian binary renames ----
+# fd-find installs fdfind and bat installs batcat to avoid clashing with other
+# packages. Alias only when the real name is free.
+if ! command -v fd >/dev/null 2>&1 && command -v fdfind >/dev/null 2>&1; then
+  alias fd='fdfind'
+fi
+if ! command -v bat >/dev/null 2>&1 && command -v batcat >/dev/null 2>&1; then
+  alias bat='batcat'
+fi
+
+# ---- listing conveniences ----
+# Deliberately modest: `ls` itself keeps stock behavior, and these three are the
+# long-standing Debian defaults, so nothing here surprises a muscle-memory user.
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+if command -v eza >/dev/null 2>&1; then
+  alias eza='eza --group-directories-first'
+fi
+
+# ---- single-user Nix ----
+# Supervisor-managed services get this from /usr/local/bin/devbox-user-env, but
+# an interactive shell (docker exec, QTerminal, a code-server terminal) is not
+# started through that wrapper, so `nix profile install` would land in a profile
+# that is not on PATH. State and cache live under /nix rather than $HOME because
+# $HOME is the persistent volume and /nix is not -- see devbox-user-env.
+#
+# uid 1000 only. The profile is user-writable, so exporting it for root (`sudo
+# -i`) would let a uid-1000 process replace the binaries root runs.
+if [ "$(id -u)" -eq 1000 ] && [ -d /nix ]; then
+  export NIX_STATE_HOME=/nix/var/nix/user-state
+  export NIX_CACHE_HOME=/nix/var/nix/user-cache
+  case ":$PATH:" in
+    *":$NIX_STATE_HOME/profiles/profile/bin:"*) ;;
+    *) PATH="$NIX_STATE_HOME/profiles/profile/bin:$PATH"; export PATH ;;
+  esac
+fi
+
+# ---- bash completion ----
+if ! shopt -oq posix; then
+  if [ -f /usr/share/bash-completion/bash_completion ]; then
+    . /usr/share/bash-completion/bash_completion
+  elif [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+  fi
+fi

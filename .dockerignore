@@ -9,3 +9,8 @@ docs
 node_modules
 **/node_modules
 web/dist
+private
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo

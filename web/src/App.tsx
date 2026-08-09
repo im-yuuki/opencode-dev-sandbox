@@ -4,7 +4,6 @@ import { Spinner } from "@heroui/react";
 import { api, type BootInfo } from "./api";
 import { LoginPage } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
-import { Embed } from "./pages/Embed";
 import { ErrorPage } from "./pages/Error";
 
 type Gate =
@@ -89,14 +88,6 @@ export function App() {
         element={
           <RequireAuth gate={gate}>
             <Dashboard user={gate.boot.user ?? "user"} />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/embed/:tool"
-        element={
-          <RequireAuth gate={gate}>
-            <Embed />
           </RequireAuth>
         }
       />
