@@ -22,7 +22,7 @@ export function Embed() {
             aria-label="back"
             className={buttonVariants({ variant: "ghost", size: "sm", isIconOnly: true })}
           >
-            <ArrowLeft size={15} />
+            <ArrowLeft size={16} />
           </Link>
           <Frame size={14} className="text-muted" />
           <Typography.Paragraph size="sm" className="font-medium">

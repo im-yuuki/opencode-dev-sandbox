@@ -29,6 +29,8 @@ export interface MetricsCpu {
   /** Effective capacity in cores (quota, cpuset, or host CPU count). */
   capacityCores: number | null;
   hostCores: number | null;
+  /** Human-readable CPU model name, e.g. "Apple M3". */
+  model: string | null;
   source: string | null;
 }
 
@@ -58,6 +60,14 @@ export interface MetricsNetwork {
   interfaces: string[];
 }
 
+export interface MetricsGpu {
+  count: number;
+  name: string | null;
+  utilizationPercent: number | null;
+  memoryUsedBytes: number | null;
+  memoryTotalBytes: number | null;
+}
+
 export interface SystemMetricsResponse {
   monotonic: number;
   cpu: MetricsCpu | null;
@@ -65,6 +75,7 @@ export interface SystemMetricsResponse {
   memory: MetricsMemory | null;
   disk: MetricsDisk | null;
   network: MetricsNetwork | null;
+  gpu: MetricsGpu | null;
 }
 
 async function j<T>(res: Response): Promise<T> {
@@ -83,12 +94,12 @@ async function j<T>(res: Response): Promise<T> {
 
 export const api = {
   boot: () => fetch("/launcher/api/v1/boot", { credentials: "include" }).then(j<BootInfo>),
-  login: (password: string) =>
+  login: (username: string, password: string) =>
     fetch("/launcher/api/v1/login", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ username, password }),
     }).then(j<{ user: string }>),
   setup: (password: string) =>
     fetch("/launcher/api/v1/setup", {

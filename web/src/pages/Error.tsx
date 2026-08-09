@@ -94,12 +94,12 @@ export function ErrorPage({ code: fixed }: { code?: number } = {}) {
     <div className="grid h-screen place-items-center px-4">
       <Card className="w-full max-w-sm">
         <Card.Header className="items-start gap-1">
-          <Avatar size="md" className="mb-1">
+          <Avatar size="lg" className="mb-3">
             <Avatar.Fallback>
               <Icon size={24} />
             </Avatar.Fallback>
           </Avatar>
-          <Card.Title className="text-xl tracking-tight">{title}</Card.Title>
+          <Card.Title>{title}</Card.Title>
         </Card.Header>
 
         <Card.Content>
@@ -114,7 +114,7 @@ export function ErrorPage({ code: fixed }: { code?: number } = {}) {
               to="/login"
               className={buttonVariants({ variant: "primary", fullWidth: true })}
             >
-              <LogIn size={15} />
+              <LogIn size={16} />
               Go to login
             </Link>
           ) : (

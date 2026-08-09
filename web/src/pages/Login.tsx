@@ -29,6 +29,7 @@ export function LoginPage({
   // needsSetup comes from the boot gate; switching mid-flight keeps the form
   // usable if the backend disagrees (e.g. a session that revived between calls).
   const [setupMode, setSetupMode] = useState(needsSetup);
+  const [name, setName] = useState("");
   const [pw, setPw] = useState("");
   const [confirm, setConfirm] = useState("");
   // Server-side rejection, surfaced through the form's own error channel so it
@@ -53,7 +54,7 @@ export function LoginPage({
         // gate pick it up instead of bouncing on stale boot state.
         await api.setup(pw);
       } else {
-        await api.login(pw);
+        await api.login(name, pw);
       }
       // Full reload: the auth gate caches boot state at mount, so a client-side
       // nav would re-render with the stale unauthenticated gate and bounce back.
@@ -79,21 +80,38 @@ export function LoginPage({
     <div className="grid h-screen place-items-center px-4">
       <Form
         onSubmit={submit}
-        validationErrors={serverErr ? { password: serverErr } : undefined}
+        validationErrors={
+          serverErr ? { username: serverErr, password: serverErr } : undefined
+        }
         className="w-full max-w-sm">
         <Card className="w-full">
           <Card.Header className="items-start gap-1">
-            <Avatar size="md" className="mb-1">
+            <Avatar size="lg" className="mb-3">
               <Avatar.Fallback>
                 <SetupIcon size={24} />
               </Avatar.Fallback>
             </Avatar>
-            <Card.Title className="text-xl tracking-tight">
+            <Card.Title>
               {setupMode ? "Set your password" : "Sign in"}
             </Card.Title>
           </Card.Header>
 
           <Card.Content className="w-full">
+            {!setupMode ? (
+              <TextField
+                name="username"
+                isRequired
+                value={name}
+                onChange={setName}
+                className="mb-4 flex w-full flex-col gap-1">
+                <Label className="text-xs font-semibold tracking-wider uppercase text-muted">
+                  username
+                </Label>
+                <Input placeholder="your username" autoComplete="username" />
+                <FieldError className="text-sm text-danger" />
+              </TextField>
+            ) : null}
+
             <TextField
               name="password"
               type="password"
@@ -105,7 +123,10 @@ export function LoginPage({
               <Label className="text-xs font-semibold tracking-wider uppercase text-muted">
                 {setupMode ? "new password" : "password"}
               </Label>
-              <Input placeholder="your unix password" />
+              <Input
+                placeholder="your unix password"
+                autoComplete={setupMode ? "new-password" : "current-password"}
+              />
               {setupMode ? (
                 <Description className="text-xs text-muted">
                   At least {MIN_LEN} characters.
@@ -127,7 +148,7 @@ export function LoginPage({
                 <Label className="text-xs font-semibold tracking-wider uppercase text-muted">
                   confirm password
                 </Label>
-                <Input placeholder="repeat" />
+                <Input placeholder="repeat" autoComplete="new-password" />
                 <FieldError className="text-sm text-danger" />
               </TextField>
             ) : null}

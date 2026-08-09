@@ -5,6 +5,20 @@ export interface MetricsSample {
   /** Client timestamp (ms) used as the sliding-window X axis. */
   at: number;
   cpuPercent: number | null;
+  /** Human-readable CPU model name (static per boot). */
+  cpuModel: string | null;
+  /** Physical cores reported by the host. */
+  hostCores: number | null;
+  /** Effective cores the cgroup can use (quota/cpuset). */
+  capacityCores: number | null;
+  /** GPU summary; null when the box has no GPU. */
+  gpu: {
+    count: number;
+    name: string | null;
+    utilizationPercent: number | null;
+    memoryUsedBytes: number | null;
+    memoryTotalBytes: number | null;
+  } | null;
   load: { one: number; five: number; fifteen: number } | null;
   memory: {
     usedBytes: number;
@@ -155,6 +169,18 @@ function deriveSample(
   return {
     at,
     cpuPercent: cpuPct,
+    cpuModel: cur.cpu?.model ?? null,
+    hostCores: cur.cpu?.hostCores ?? null,
+    capacityCores: cur.cpu?.capacityCores ?? null,
+    gpu: cur.gpu
+      ? {
+          count: cur.gpu.count,
+          name: cur.gpu.name,
+          utilizationPercent: cur.gpu.utilizationPercent,
+          memoryUsedBytes: cur.gpu.memoryUsedBytes,
+          memoryTotalBytes: cur.gpu.memoryTotalBytes,
+        }
+      : null,
     load: cur.load
       ? {
           one: cur.load.one,

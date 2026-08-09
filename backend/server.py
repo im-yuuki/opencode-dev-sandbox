@@ -336,8 +336,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             )
 
         if path == "/api/v1/login":
+            # Single configured account, no multi-user handling: the submitted
+            # username must match the one the box was provisioned with. A wrong
+            # username is rejected outright and does not spend a rate-limit
+            # attempt — the username is fixed, so there is nothing here to
+            # brute-force, only the password.
+            name = str(body.get("username") or "")
             pw = str(body.get("password") or "")
             ip = self._client_ip()
+            if name != USER:
+                return self._send({"error": "invalid credentials"}, 401)
             # Checked before PAM so a locked-out caller costs nothing and gets
             # no signal about whether the password was right.
             wait = rl_admit(ip)

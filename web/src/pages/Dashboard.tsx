@@ -22,6 +22,7 @@ import {
   Box,
   Circle,
   type LucideIcon,
+  User,
 } from "lucide-react";
 import { api, type AppInfo } from "../api";
 import { SystemMetrics } from "../components/SystemMetrics";
@@ -145,7 +146,9 @@ function AppRow({
               aria-label={`${m.unit}: ${m.running ? "running" : "stopped"}`}
               color={m.running ? "success" : "default"}>
               <Circle aria-hidden size={7} fill="currentColor" />
-              <Typography.Code className="truncate">{m.unit}</Typography.Code>
+              <Typography.Code className="truncate text-xs text-muted">
+                {m.unit}
+              </Typography.Code>
             </Chip>
           ))}
         </Card.Content>
@@ -208,7 +211,9 @@ function AppRow({
               className={buttonVariants({
                 variant: "outline",
                 size: "sm",
-                className: canOpen ? undefined : "pointer-events-none opacity-50",
+                className: canOpen
+                  ? undefined
+                  : "pointer-events-none opacity-50",
               })}>
               <ArrowUpRight size={14} />
             </a>
@@ -251,12 +256,13 @@ export function Dashboard({ user }: { user: string }) {
           <HeroLink
             href="/launcher/"
             aria-label="Open the Dashboard"
-            className="flex items-center gap-4 text-sm font-semibold tracking-tight text-foreground">
+            className="flex items-center gap-3 text-sm font-semibold tracking-tight text-foreground">
             <Box size={24} className="text-muted" />
             DevBox
           </HeroLink>
           <div className="flex items-center gap-3">
             <Chip size="sm" variant="soft">
+              <User size={12} />
               {user}
             </Chip>
             <Button
