@@ -32,7 +32,7 @@ export const TOOLS: Record<string, ToolDef> = {
     name: "Desktop",
     description: "LXQt session via noVNC.",
     icon: MonitorPlay,
-    url: "/vnc/vnc.html?path=vnc/websockify&resize=remote&config=devbox-resize-v2",
+    url: "/vnc/vnc.html?path=vnc/websockify&resize=remote&config=devbox-resize-v2&autoconnect=1&reconnect=1&reconnect_delay=2000",
   },
   code: {
     id: "code",
@@ -46,7 +46,7 @@ export const TOOLS: Record<string, ToolDef> = {
     name: "CLI Proxy",
     description: "CLIProxyAPI + Management Center: providers, keys, routing.",
     icon: Network,
-    url: "/management.html",
+    url: "/launcher/mc-boot.html",
   },
 };
 

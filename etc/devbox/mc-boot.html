@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Opening CLI Proxy…</title>
+    <meta name="robots" content="noindex" />
+    <style>
+      body { font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #0f1115; color: #e4e4e7; }
+    </style>
+  </head>
+  <body>
+    <p>Signing you into the CLI Proxy Management Center…</p>
+    <script>
+      // Single-login bootstrap for the Management Center.
+      //
+      // The panel is a separate SPA that keeps its own "logged-in" state in
+      // localStorage and asks for the management key on first visit. Instead of
+      // making the user type that key after already logging in to the DevBox,
+      // this page pulls the key from the (PAM-authenticated) control API and
+      // seeds the panel's storage, then hands over to /management.html where the
+      // panel's own restoreSession() auto-login takes over.
+      //
+      // The panel accepts the plaintext legacy storage format: a raw
+      // `managementKey` string, an optional `apiBase`, and an `isLoggedIn` flag.
+      (function () {
+        var KEY_URL = "/launcher/api/v1/cliproxy-key";
+        var TARGET = "/management.html";
+
+        fetch(KEY_URL, { credentials: "include" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("status " + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            if (!data || !data.key) throw new Error("empty key");
+            try {
+              localStorage.setItem("isLoggedIn", "true");
+              localStorage.setItem("managementKey", data.key);
+              localStorage.setItem("apiBase", window.location.origin);
+            } catch (e) {
+              // localStorage disabled or full; fall through to the panel,
+              // which will still accept a manual login.
+              console.warn("devbox: could not seed management key", e);
+            }
+            window.location.replace(TARGET);
+          })
+          .catch(function () {
+            // Not logged in to DevBox yet, or the proxy is not started: the
+            // launcher login flow is the single sign-on point.
+            window.location.replace("/launcher/");
+          });
+      })();
+    </script>
+  </body>
+</html>

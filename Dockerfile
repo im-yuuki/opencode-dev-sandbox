@@ -121,6 +121,7 @@ COPY etc/novnc/mandatory.json /usr/share/novnc/mandatory.json
 # Give the deployment policy a new URL once, then nginx marks it no-store.
 RUN sed -i "s|fetch('./mandatory.json')|fetch('./mandatory.json?v=devbox-resize-v2')|" /usr/share/novnc/vnc.html /usr/share/novnc/vnc_auto.html && grep -q "mandatory.json?v=devbox-resize-v2" /usr/share/novnc/vnc.html && grep -q "mandatory.json?v=devbox-resize-v2" /usr/share/novnc/vnc_auto.html
 COPY etc/devbox/xstartup /usr/share/devbox/xstartup
+COPY etc/devbox/mc-boot.html /var/www/launcher/mc-boot.html
 COPY scripts/entrypoint.sh /usr/local/sbin/entrypoint.sh
 COPY scripts/vnc-run.sh /usr/local/sbin/vnc-run.sh
 COPY scripts/google-chrome-stable /usr/local/bin/google-chrome-stable

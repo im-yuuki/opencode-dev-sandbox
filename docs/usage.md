@@ -68,20 +68,22 @@ CLIProxyAPI brokers provider accounts behind one OpenAI-compatible endpoint, wit
 Management Center panel baked into the image so it is available offline.
 
 1. Launch **CLI Proxy** from the dashboard.
-2. Open `/management.html` in a new tab.
-3. Read the management key, which the entrypoint generates on first start:
-
-   ```bash
-   docker exec -u user devbox sh -c 'cat /workspace/.devbox/cliproxy/management.key'
-   ```
-
-4. Log into the panel with that key, add providers, and create proxy API keys there. None are
-   seeded for you.
-5. Point in-container agents and CLIs at the proxy:
+2. Open **CLI Proxy** from the dashboard — the new tab goes through a small
+   bootstrap page that seeds your already-started DevBox session into the panel,
+   so there is no second login and no prompt for the management key.
+3. Add providers and create proxy API keys there. None are seeded for you.
+4. Point in-container agents and CLIs at the proxy:
 
    ```text
    http://127.0.0.1:8317
    ```
+
+If you need the management key for anything outside the browser, the entrypoint
+generates it on first start:
+
+```bash
+docker exec -u user devbox sh -c 'cat /workspace/.devbox/cliproxy/management.key'
+```
 
 Only the panel and its management API are reachable through the gateway. The `/v1/` proxy surface
 is not published, so it stays loopback-only inside the container.
