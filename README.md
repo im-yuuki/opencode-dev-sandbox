@@ -1,6 +1,6 @@
 # OpenCode Dev Sandbox
 
-A full Linux dev box in one container, reachable from a browser. Coding agent, VS Code, a KDE
+A full Linux dev box in one container, reachable from a browser. Coding agent, VS Code, an LXQt
 desktop and a file manager — one HTTPS port, one login.
 
 <p align="center">
@@ -8,7 +8,7 @@ desktop and a file manager — one HTTPS port, one login.
   &nbsp;&nbsp;
   <img src="https://cdn.simpleicons.org/docker/2496ED" height="34" alt="Docker" />
   &nbsp;&nbsp;
-  <img src="https://cdn.simpleicons.org/kde/1D99F3" height="34" alt="KDE" />
+  <img src="https://cdn.simpleicons.org/qt/41CD52" height="34" alt="LXQt" />
   &nbsp;&nbsp;
   <img src="https://cdn.simpleicons.org/nodedotjs/5FA04E" height="34" alt="Node.js" />
   &nbsp;&nbsp;
@@ -71,7 +71,7 @@ docker exec -it devbox bash -lc 'su - user'
   after `docker restart`.
 - **Persistent workspace.** `/workspace` is a volume: code, settings, desktop session and the
   TLS certificate survive container rebuilds.
-- **Real desktop.** KDE Plasma over noVNC, resolution follows your browser window.
+- **Real desktop.** LXQt over noVNC, resolution follows your browser window.
 - **Batteries included.** Node.js LTS, Python, a C/C++ toolchain, Git and Chrome preinstalled.
 - **Multi-arch.** Runs natively on x86 and ARM (Apple Silicon, Raspberry Pi–class servers).
 
@@ -81,7 +81,7 @@ docker exec -it devbox bash -lc 'su - user'
 | --- | --- |
 | **Agent** | OpenCode sessions, diffs, git, terminal, editor. Always on. |
 | **Code** | VS Code in the browser, rooted at `/workspace`. |
-| **Desktop** | KDE Plasma session streamed to the browser. |
+| **Desktop** | LXQt session streamed to the browser. |
 | **Files** | Upload, download, archive, edit, move files. |
 
 ---
@@ -92,13 +92,9 @@ docker exec -it devbox bash -lc 'su - user'
 | --- | --- |
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Agent](docs/screenshots/agent.png) |
 
-| Code | Desktop |
+| Code | Files |
 | --- | --- |
-| ![Code](docs/screenshots/code.png) | ![Desktop](docs/screenshots/desktop.png) |
-
-| Files |
-| --- |
-| ![Files](docs/screenshots/files.png) |
+| ![Code](docs/screenshots/code.png) | ![Files](docs/screenshots/files.png) |
 
 ---
 
@@ -111,7 +107,7 @@ docker exec -it devbox bash -lc 'su - user'
 | <img src="https://cdn.simpleicons.org/opencode/000000/FFFFFF" height="20" /> | [OpenCode](https://opencode.ai) | Terminal-native coding agent |
 | <img src="https://cdn.simpleicons.org/github/181717/FFFFFF" height="20" /> | [OpenChamber](https://github.com/openchamber/openchamber) | Web UI for agent sessions |
 | <img src="https://cdn.simpleicons.org/coder/000000/FFFFFF" height="20" /> | [code-server](https://github.com/coder/code-server) | VS Code in the browser |
-| <img src="https://cdn.simpleicons.org/kde/1D99F3" height="20" /> | [KDE Plasma 6](https://kde.org/plasma-desktop/) | Desktop, Dolphin, Konsole, Kate, System Settings |
+| <img src="https://cdn.simpleicons.org/qt/41CD52" height="20" /> | [LXQt](https://lxqt-project.org) | Desktop (Openbox), PCManFM-Qt, QTerminal, FeatherPad, LXQt Configuration Center |
 | <img src="https://cdn.simpleicons.org/nodedotjs/5FA04E" height="20" /> | [Cloud Commander](https://cloudcmd.io) | Web file manager |
 | <img src="https://cdn.simpleicons.org/googlechrome/4285F4" height="20" /> | [Google Chrome](https://www.google.com/chrome/) | Browser on the desktop, with its own sandbox |
 | <img src="https://cdn.simpleicons.org/xdotorg/F28834" height="20" /> | [TigerVNC + noVNC](https://novnc.com) | Desktop streaming |

@@ -30,22 +30,33 @@ chmod 700 /workspace/.devbox/cloudcmd
 # triggers a migration that fails on fresh volumes, so seed XDG dir directly.
 su -s /bin/bash "$WEB_USER" -c '
   rm -rf "$HOME/.vnc" 2>/dev/null || true
-  mkdir -p "$HOME/.config/tigervnc" "$HOME/.local/share"
+  mkdir -p "$HOME/.config/tigervnc" "$HOME/.config/lxqt" "$HOME/.local/share"
+
+  # The desktop moved from KDE Plasma to LXQt. A workspace volume created by an
+  # older image still holds an xstartup that execs startplasma-x11, which is no
+  # longer installed, so the session would fail to start every time. Move any
+  # such file aside (kept as .kde.bak, never deleted) and reseed.
+  if [ -f "$HOME/.config/tigervnc/xstartup" ] \
+     && grep -q "startplasma-x11" "$HOME/.config/tigervnc/xstartup"; then
+    mv "$HOME/.config/tigervnc/xstartup" "$HOME/.config/tigervnc/xstartup.kde.bak"
+  fi
   if [ ! -f "$HOME/.config/tigervnc/xstartup" ]; then
     cp /usr/share/devbox/xstartup "$HOME/.config/tigervnc/xstartup"
   fi
   chmod +x "$HOME/.config/tigervnc/xstartup"
+
   if [ ! -f "$HOME/.bashrc" ]; then
     printf "cd /workspace\nPS1=\"\\\\u@\\\\h:\\\\w$ \"\n" > "$HOME/.bashrc"
   fi
-  # Screen locker is useless in a VNC session and locks the user out on idle.
-  if [ ! -f "$HOME/.config/kscreenlockerrc" ]; then
-    printf "[Daemon]\nAutolock=false\nLockOnResume=false\nTimeout=0\n" \
-      > "$HOME/.config/kscreenlockerrc"
+  # lxqt-core ships no window manager; name openbox explicitly or the session
+  # comes up with bare, undecorated windows.
+  if [ ! -f "$HOME/.config/lxqt/session.conf" ]; then
+    printf "[General]\nwindow_manager=openbox\n" \
+      > "$HOME/.config/lxqt/session.conf"
   fi
-  if [ ! -f "$HOME/.config/powermanagementprofilesrc" ]; then
-    printf "[AC][SuspendSession]\nidleTime=0\nsuspendType=0\n" \
-      > "$HOME/.config/powermanagementprofilesrc"
+  if [ ! -f "$HOME/.config/lxqt/lxqt.conf" ]; then
+    printf "[General]\nicon_theme=Papirus\n" \
+      > "$HOME/.config/lxqt/lxqt.conf"
   fi
 '
 

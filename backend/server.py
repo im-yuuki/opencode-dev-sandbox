@@ -42,14 +42,14 @@ STATE_FILE = os.path.join(STATE_DIR, "apps.json")
 # the gateway cannot be toggled (stopping it locks everyone out) and dbus is
 # session infrastructure. "agent" is the core app: always autostarted, never
 # offered Launch/Stop controls.
-# Desktop = one feature: Xvnc + Plasma (vnc) toggled together with its
+# Desktop = one feature: Xvnc + LXQt (vnc) toggled together with its
 # noVNC bridge (websockify) so the pair stays consistent.
 APPS = {
     "agent": ("Agent", [("openchamber", "OpenCode UI + terminal")]),
     "files": ("Files", [("cloudcmd", "Cloud Commander file manager")]),
     "desktop": (
         "Desktop",
-        [("vnc", "Xvnc + Plasma"), ("websockify", "noVNC bridge")],
+        [("vnc", "Xvnc + LXQt"), ("websockify", "noVNC bridge")],
     ),
     "code": ("Code", [("code-server", "VS Code web")]),
 }

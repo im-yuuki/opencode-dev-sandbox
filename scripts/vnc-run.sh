@@ -1,5 +1,5 @@
 #!/bin/bash
-# Foreground TigerVNC + KDE Plasma for supervisord (replaces vnc.service).
+# Foreground TigerVNC + LXQt for supervisord (replaces vnc.service).
 # Screen geometry lives here.
 set -e
 

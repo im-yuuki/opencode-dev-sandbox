@@ -34,7 +34,7 @@ export const TOOLS: Record<string, ToolDef> = {
   desktop: {
     id: "desktop",
     name: "Desktop",
-    description: "KDE Plasma session via noVNC.",
+    description: "LXQt session via noVNC.",
     icon: MonitorPlay,
     url: "/vnc/vnc.html?path=vnc/websockify&resize=remote&config=devbox-resize-v2",
     embed: true,

@@ -39,8 +39,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends build-essential
 # ============ web server ============
 RUN apt-get update && apt-get install -y --no-install-recommends openssl nginx && rm -rf /var/lib/apt/lists/*
 
-# ============ KDE Plasma ============
-RUN apt-get update && apt-get install -y --no-install-recommends plasma-desktop kwin-x11 dolphin konsole systemsettings kate dbus-x11 x11-xserver-utils xauth && rm -rf /var/lib/apt/lists/*
+# ============ LXQt ============
+# lxqt-core pulls session/panel/runner/notificationd/pcmanfm-qt/qterminal but no
+# window manager, so openbox is explicit. The full `lxqt` metapackage is skipped
+# on purpose: it drags in an image viewer, archiver, mixer and translations.
+RUN apt-get update && apt-get install -y --no-install-recommends lxqt-core lxqt-config openbox pcmanfm-qt qterminal featherpad papirus-icon-theme dbus-x11 x11-xserver-utils xauth && rm -rf /var/lib/apt/lists/*
 
 # ============ VNC / noVNC ============
 RUN apt-get update && apt-get install -y --no-install-recommends tigervnc-standalone-server novnc websockify && rm -rf /var/lib/apt/lists/*

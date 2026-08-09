@@ -1,7 +1,13 @@
 #!/bin/sh
 
-# KDE Plasma 6 (X11) session for Xvnc
+# LXQt (X11) session for Xvnc. Window manager is openbox, configured in
+# $HOME/.config/lxqt/session.conf (seeded by entrypoint.sh).
 unset SESSION_MANAGER
 unset DBUS_SESSION_BUS_ADDRESS
-export XDG_CURRENT_DESKTOP=KDE
-exec dbus-launch --exit-with-session startplasma-x11
+export XDG_CURRENT_DESKTOP=LXQt
+
+# lxqt-powermanagement is deliberately not installed, but the X server still
+# blanks on its own. Nothing should ever black out a remote-only display.
+xset s off -dpms s noblank 2>/dev/null || true
+
+exec dbus-launch --exit-with-session startlxqt
