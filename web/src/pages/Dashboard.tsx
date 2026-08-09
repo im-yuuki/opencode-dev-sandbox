@@ -92,10 +92,7 @@ function AppRow({
   const running = appRunning(app);
   const someOn = app.members.some((m) => m.running);
   const Icon: LucideIcon = meta?.icon ?? Box;
-  const isAgent = app.id === "agent";
-  // Agent is always on, so its link is live even though the row never reports
-  // the Stop/running state the other apps do.
-  const canOpen = Boolean(meta?.url) && (running || isAgent);
+  const canOpen = Boolean(meta?.url) && running;
 
   return (
     // Mount-only fade/slide. No `layout`: rows never reorder and their height is
@@ -143,7 +140,8 @@ function AppRow({
               size="sm"
               variant="tertiary"
               aria-label={`${m.unit}: ${m.running ? "running" : "stopped"}`}
-              color={m.running ? "success" : "default"}>
+              color={m.running ? "success" : "default"}
+              className="gap-1">
               <Circle aria-hidden size={7} fill="currentColor" />
               <Typography.Code className="truncate text-xs text-muted">
                 {m.unit}
@@ -153,10 +151,7 @@ function AppRow({
         </Card.Content>
 
         <Card.Footer className="shrink-0 gap-2">
-          {/* Agent has no start/stop controls: it is the always-on core, so
-              starting it is a no-op and stopping it would take the launcher
-              down with it. */}
-          {isAgent ? null : running ? (
+          {running ? (
             <Button
               size="sm"
               variant="danger"

@@ -147,7 +147,7 @@ function CpuTile({ sample, history }: TileProps) {
             </Typography.Paragraph>
           )}
         </div>
-        <ChartArea ready={data.length >= 2} height={72}>
+        <ChartArea ready={data.length >= 2} height={60}>
           <MetricsChart
             data={data}
             series={[
@@ -156,7 +156,7 @@ function CpuTile({ sample, history }: TileProps) {
             label="CPU usage, last minute"
             yDomain={[0, 100]}
             unit="%"
-            height={72}
+            height={60}
           />
         </ChartArea>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -228,7 +228,7 @@ function GpuTile({ sample, history }: TileProps) {
             </ProgressBar.Track>
           </ProgressBar>
         ) : null}
-        <ChartArea ready={data.length >= 2} height={44}>
+        <ChartArea ready={data.length >= 2} height={60}>
           <MetricsChart
             data={data}
             series={[
@@ -246,7 +246,7 @@ function GpuTile({ sample, history }: TileProps) {
             label="GPU utilization and memory, last minute"
             yDomain={[0, 100]}
             unit="%"
-            height={44}
+            height={60}
           />
         </ChartArea>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -286,7 +286,7 @@ function LoadTile({ sample, history }: TileProps) {
             1-minute load average
           </Typography.Paragraph>
         </div>
-        <ChartArea ready={data.length >= 2} height={44}>
+        <ChartArea ready={data.length >= 2} height={60}>
           <MetricsChart
             data={data}
             series={[
@@ -307,7 +307,7 @@ function LoadTile({ sample, history }: TileProps) {
               },
             ]}
             label="Load average, last minute"
-            height={44}
+            height={60}
           />
         </ChartArea>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -371,7 +371,7 @@ function MemoryTile({ sample, history }: TileProps) {
             </ProgressBar.Track>
           </ProgressBar>
         ) : null}
-        <ChartArea ready={data.length >= 2} height={44}>
+        <ChartArea ready={data.length >= 2} height={60}>
           <MetricsChart
             data={data}
             series={[
@@ -384,7 +384,7 @@ function MemoryTile({ sample, history }: TileProps) {
             label="Memory usage, last minute"
             yDomain={[0, 100]}
             unit="%"
-            height={44}
+            height={60}
           />
         </ChartArea>
       </Card.Content>
@@ -464,7 +464,7 @@ function NetworkTile({ sample, history }: TileProps) {
             </Typography.Paragraph>
           </div>
         </div>
-        <ChartArea ready={data.length >= 2} height={44}>
+        <ChartArea ready={data.length >= 2} height={60}>
           <MetricsChart
             data={data}
             series={[
@@ -474,7 +474,7 @@ function NetworkTile({ sample, history }: TileProps) {
             label="Network receive and transmit, last minute"
             unit="/s"
             formatValue={(v) => formatBytes(v)}
-            height={44}
+            height={60}
           />
         </ChartArea>
       </Card.Content>

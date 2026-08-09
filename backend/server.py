@@ -42,8 +42,8 @@ STATE_FILE = os.path.join(STATE_DIR, "apps.json")
 # Applications shown on the dashboard. id -> (display name, [supervisor
 # programs]). nginx (gateway) and dbus stay supervised but are never listed:
 # the gateway cannot be toggled (stopping it locks everyone out) and dbus is
-# session infrastructure. "agent" is the core app: always autostarted, never
-# offered Launch/Stop controls.
+# session infrastructure. "agent" is a normal toggle-able app like the rest; on
+# first boot everything sits stopped until launched from the dashboard.
 # Desktop = one feature: Xvnc + LXQt (vnc) toggled together with its
 # noVNC bridge (websockify) so the pair stays consistent.
 # The "files" id predates the switch from Cloud Commander to FileBrowser
@@ -457,7 +457,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main():
     # Bring back applications that were enabled before the container restarted.
-    # Agent and infrastructure (nginx, dbus) autostart via supervisord instead.
+    # Everything is autostart=false under supervisord; nginx and dbus come back
+    # via their own units (nginx is on by default as the gateway).
     restore_enabled()
     server = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"devbox api listening on {HOST}:{PORT} for user '{USER}'", flush=True)

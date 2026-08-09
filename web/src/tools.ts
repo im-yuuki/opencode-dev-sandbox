@@ -1,10 +1,9 @@
 import type { LucideIcon } from "lucide-react";
 import { Braces, Cable, FolderOpen, MonitorPlay, Network } from "lucide-react";
 
-// Application metadata, keyed by the control plane's app ids. "agent" is the
-// always-on core: the dashboard gives it no Stop control, but it does get
-// "Open in New Tab" since it is always reachable. `url` is where that link
-// goes; apps without one get no link at all.
+// Application metadata, keyed by the control plane's app ids. Every app
+// starts and stops from the dashboard; `url` is where "Open in New Tab" goes,
+// and apps without one get no open link.
 export interface ToolDef {
   id: string;
   name: string;
