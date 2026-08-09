@@ -17,6 +17,8 @@ import threading
 import time
 import urllib.parse
 
+import metrics
+
 USER = os.environ.get("DEVBOX_USER", "user")
 HOST = os.environ.get("DEVBOX_BIND", "127.0.0.1")
 PORT = int(os.environ.get("DEVBOX_PORT", "9102"))
@@ -239,14 +241,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return v
         return None
 
-    # Secure is unconditional: the gateway is https-only, so a cleartext
-    # request never gets far enough to need the cookie back.
-    @staticmethod
-    def _session_cookie(token):
-        return (
-            f"devbox_session={token}; Path=/; HttpOnly; Secure; SameSite=Lax; "
-            f"Max-Age={SESSION_TTL}"
+    # The gateway serves both a plaintext and a TLS listener, so Secure has to
+    # follow the request: a Secure cookie handed to a client that arrived over
+    # http is never sent back, which reads as a login that silently fails.
+    # X-Forwarded-Proto comes from nginx on every proxied location and the API
+    # only listens on 127.0.0.1, so it is not attacker-settable from outside.
+    def _forwarded_https(self):
+        return (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
+
+    def _cookie_attrs(self):
+        return "Path=/; HttpOnly; SameSite=Lax" + (
+            "; Secure" if self._forwarded_https() else ""
         )
+
+    def _session_cookie(self, token):
+        return f"devbox_session={token}; {self._cookie_attrs()}; Max-Age={SESSION_TTL}"
 
     def _body(self):
         n = int(self.headers.get("Content-Length") or 0)
@@ -303,6 +312,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     ]
                 }
             )
+        if path == "/api/v1/metrics":
+            if not self._authed_user():
+                return self._send({"error": "unauthorized"}, 401)
+            return self._send(metrics.collect_metrics())
         return self._plain("not found", 404)
 
     def do_POST(self):
@@ -353,7 +366,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             drop_session(self._cookie_token())
             return self._send(
                 {"ok": True},
-                cookie="devbox_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
+                cookie=f"devbox_session=; {self._cookie_attrs()}; Max-Age=0",
             )
 
         if path.startswith("/api/v1/services/"):

@@ -1,7 +1,7 @@
 # OpenCode Dev Sandbox
 
 A full Linux dev box in one container, reachable from a browser. Coding agent, VS Code, an LXQt
-desktop and a file manager — one HTTPS port, one login.
+desktop and a file manager — plaintext HTTP or self-signed HTTPS, one login.
 
 <p align="center">
   <img src="https://cdn.simpleicons.org/debian/A81D33" height="34" alt="Debian" />
@@ -24,7 +24,8 @@ desktop and a file manager — one HTTPS port, one login.
 ```bash
 docker run -d --name devbox \
   --security-opt seccomp=unconfined \
-  -p 8080:9080 \
+  -p 8080:80 \
+  -p 8443:443 \
   -v devbox-workspace:/workspace \
   --tmpfs /tmp --shm-size=1g \
   ghcr.io/im-yuuki/opencode-dev-sandbox:latest
@@ -35,17 +36,19 @@ Docker Hub mirror:
 ```bash
 docker run -d --name devbox \
   --security-opt seccomp=unconfined \
-  -p 8080:9080 \
+  -p 8080:80 \
+  -p 8443:443 \
   -v devbox-workspace:/workspace \
   --tmpfs /tmp --shm-size=1g \
   imyuuki/opencode-dev-sandbox:latest
 ```
 
-Then open **<https://localhost:8080/launcher/>**.
+Then open either **<http://localhost:8080/launcher/>** or
+**<https://localhost:8443/launcher/>**.
 
 - Self-signed certificate on first boot — accept the browser warning once.
 - First visit shows a password-setup form. Pick your password; that becomes your login.
-- Any free host port works: `-p 12345:9080`.
+- Any free host ports work, for example `-p 12345:80 -p 12346:443`.
 - `linux/amd64` and `linux/arm64` images are published.
 
 > **Security:** this image does not include a container daemon, mount the host Docker socket, or
@@ -177,8 +180,9 @@ These are host-wide settings; evaluate them against your threat model before cha
 
 ### Ports
 
-Internal services live on 9080 and 9100–9104, so dev servers you run inside the box (3000,
-5173, 8080, …) never collide.
+The public nginx gateway listens on 80 (plaintext HTTP) and 443 (self-signed TLS). Internal
+services live on 9100–9104, so dev servers you run inside the box (3000, 5173, 8080, …) never
+collide.
 
 ---
 

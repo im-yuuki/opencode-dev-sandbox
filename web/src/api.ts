@@ -23,6 +23,50 @@ export interface ApiApps {
   apps: AppInfo[];
 }
 
+export interface MetricsCpu {
+  /** Cumulative CPU time in nanoseconds; delta-derived % client-side. */
+  usageNs: number | null;
+  /** Effective capacity in cores (quota, cpuset, or host CPU count). */
+  capacityCores: number | null;
+  hostCores: number | null;
+  source: string | null;
+}
+
+export interface MetricsLoad {
+  one: number;
+  five: number;
+  fifteen: number;
+}
+
+export interface MetricsMemory {
+  usedBytes: number;
+  limitBytes: number;
+  availableBytes: number;
+  source: string;
+}
+
+export interface MetricsDisk {
+  totalBytes: number;
+  usedBytes: number;
+  availableBytes: number;
+  path: string;
+}
+
+export interface MetricsNetwork {
+  rxBytes: number; // cumulative
+  txBytes: number; // cumulative
+  interfaces: string[];
+}
+
+export interface SystemMetricsResponse {
+  monotonic: number;
+  cpu: MetricsCpu | null;
+  load: MetricsLoad | null;
+  memory: MetricsMemory | null;
+  disk: MetricsDisk | null;
+  network: MetricsNetwork | null;
+}
+
 async function j<T>(res: Response): Promise<T> {
   if (res.status === 204) return {} as T;
   const ct = res.headers.get("content-type") || "";
@@ -55,6 +99,8 @@ export const api = {
     }).then(j<{ user: string }>),
   logout: () => fetch("/launcher/api/v1/logout", { method: "POST", credentials: "include" }).then(j<Record<string, never>>),
   services: () => fetch("/launcher/api/v1/services", { credentials: "include" }).then(j<ApiApps>),
+  metrics: (signal?: AbortSignal) =>
+    fetch("/launcher/api/v1/metrics", { credentials: "include", signal }).then(j<SystemMetricsResponse>),
   serviceAction: (id: string, action: "start" | "stop" | "restart") =>
     fetch(`/launcher/api/v1/services/${encodeURIComponent(id)}/${action}`, {
       method: "POST",

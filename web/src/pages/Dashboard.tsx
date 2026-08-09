@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { api, type AppInfo } from "../api";
+import { SystemMetrics } from "../components/SystemMetrics";
 import { TOOLS } from "../tools";
 
 function useApps() {
@@ -248,10 +249,10 @@ export function Dashboard({ user }: { user: string }) {
       <header className="sticky top-0 z-10 border-b border-divider bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <HeroLink
-            href="/"
-            aria-label="Open the Agent (OpenChamber)"
-            className="flex items-center gap-2 text-sm font-semibold tracking-tight text-foreground">
-            <Box size={16} className="text-muted" />
+            href="/launcher/"
+            aria-label="Open the Dashboard"
+            className="flex items-center gap-4 text-sm font-semibold tracking-tight text-foreground">
+            <Box size={24} className="text-muted" />
             DevBox
           </HeroLink>
           <div className="flex items-center gap-3">
@@ -261,19 +262,21 @@ export function Dashboard({ user }: { user: string }) {
             <Button
               isIconOnly
               size="sm"
-              variant="ghost"
+              variant="danger"
               aria-label="sign out"
               onPress={() =>
                 void api.logout().then(() => window.location.reload())
               }>
-              <LogOut size={15} />
+              <LogOut size={16} />
             </Button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-10">
-        <section>
+        <SystemMetrics />
+
+        <section className="mt-10">
           <Header className="mb-2 px-0 uppercase tracking-wider">
             applications
           </Header>

@@ -95,7 +95,7 @@ RUN sed -i 's|Exec=/usr/bin/google-chrome-stable|Exec=/usr/local/bin/google-chro
 RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
 
 # ============ container ============
-EXPOSE 9080
+EXPOSE 80 443
 VOLUME ["/workspace"]
 STOPSIGNAL SIGTERM
 WORKDIR /workspace
