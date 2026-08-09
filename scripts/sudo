@@ -1,0 +1,15 @@
+#!/bin/sh
+# Compatibility for the interactive escalation forms used in this DevBox.
+# Cloud Run blocks the real setuid /usr/bin/sudo with no_new_privs; delegate
+# root-shell requests to the root-owned local broker instead.
+case "${1-}" in
+  ""|-i|-s|su|bash|/bin/bash)
+    exec /usr/local/bin/devbox-root
+    ;;
+  *)
+    printf '%s\n' \
+      'sudo: Cloud Run blocks setuid privilege escalation (no_new_privs).' \
+      'Run `sudo su` (or `devbox-root`) first, then execute the command.' >&2
+    exit 1
+    ;;
+esac

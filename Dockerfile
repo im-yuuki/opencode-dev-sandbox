@@ -32,7 +32,7 @@ RUN apt-get install -y --no-install-recommends nodejs
 RUN apt-get install -y --no-install-recommends python3 python3-pamela python3-pip python3-venv
 
 # ============ base system ============
-RUN apt-get install -y --no-install-recommends supervisor dbus locales tzdata sudo git vim htop fastfetch jq unzip zip p7zip-full
+RUN apt-get install -y --no-install-recommends supervisor dbus locales tzdata sudo socat git vim htop fastfetch jq unzip zip p7zip-full
 
 # ============ development toolchain ============
 RUN apt-get install -y --no-install-recommends build-essential cmake
@@ -89,9 +89,12 @@ RUN sed -i "s|fetch('./mandatory.json')|fetch('./mandatory.json?v=devbox-resize-
 COPY xstartup /usr/share/devbox/xstartup
 COPY scripts/entrypoint.sh /usr/local/sbin/entrypoint.sh
 COPY scripts/vnc-run.sh /usr/local/sbin/vnc-run.sh
+COPY scripts/root-shell-server /usr/local/sbin/root-shell-server
 COPY scripts/google-chrome-stable /usr/local/bin/google-chrome-stable
 COPY scripts/code-server /usr/local/bin/code-server
-RUN chmod +x /usr/local/sbin/entrypoint.sh /usr/local/sbin/vnc-run.sh /usr/local/bin/google-chrome-stable /usr/local/bin/code-server
+COPY scripts/devbox-root /usr/local/bin/devbox-root
+COPY scripts/sudo /usr/local/bin/sudo
+RUN chmod +x /usr/local/sbin/entrypoint.sh /usr/local/sbin/vnc-run.sh /usr/local/sbin/root-shell-server /usr/local/bin/google-chrome-stable /usr/local/bin/code-server /usr/local/bin/devbox-root /usr/local/bin/sudo
 RUN sed -i 's|Exec=/usr/bin/google-chrome-stable|Exec=/usr/local/bin/google-chrome-stable|g' /usr/share/applications/google-chrome.desktop
 RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
 
