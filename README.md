@@ -24,29 +24,16 @@ desktop, a file manager and an LLM proxy — plaintext HTTP or self-signed HTTPS
 ## Quick start
 
 ```bash
-docker run -d --name devbox \
-  --security-opt seccomp=unconfined \
-  -p 8080:80 \
-  -p 8443:443 \
-  -v devbox-workspace:/workspace \
-  --tmpfs /tmp --shm-size=1g \
-  ghcr.io/im-yuuki/opencode-dev-sandbox:latest
+docker run -d --security-opt seccomp=unconfined --tmpfs /tmp --shm-size=1g -p 8080:80 -p 8443:443 --name devbox -v devbox-workspace:/workspace ghcr.io/im-yuuki/opencode-dev-sandbox:latest
 ```
 
 Docker Hub mirror:
 
 ```bash
-docker run -d --name devbox \
-  --security-opt seccomp=unconfined \
-  -p 8080:80 \
-  -p 8443:443 \
-  -v devbox-workspace:/workspace \
-  --tmpfs /tmp --shm-size=1g \
-  imyuuki/opencode-dev-sandbox:latest
+docker run -d --security-opt seccomp=unconfined --tmpfs /tmp --shm-size=1g -p 8080:80 -p 8443:443 --name devbox -v devbox-workspace:/workspace imyuuki/opencode-dev-sandbox:latest
 ```
 
-Then open either **<http://localhost:8080/launcher/>** or
-**<https://localhost:8443/launcher/>**.
+Then open either **<http://localhost:8080/launcher/>** or **<https://localhost:8443/launcher/>**.
 
 - Self-signed certificate on first boot — accept the browser warning once.
 - First visit shows a password-setup form. Pick your password; that becomes your login **and** the
@@ -132,7 +119,7 @@ No C/C++ toolchain and no CMake ship in the image. Install them per project with
 | Archives | tar, gzip, bzip2, xz, zstd, zip, unzip, 7zip, rsync |
 | Process and system | procps, psmisc, util-linux, lsof, htop, btop, fastfetch |
 | Inspect and debug | strace, ltrace, time, binutils, xxd, binwalk |
-| Network | curl, wget, openssh-client, gnupg, iproute2, ping, dig, netcat, socat, traceroute, mtr, whois, iperf3, nmap, tcpdump |
+| Network | curl, wget, openssh-client, gnupg, iproute2, ping, dig, netcat, socat, traceroute, mtr, whois, iperf3, nmap, tcpdump, cloudflared |
 
 `fd` and `bat` keep Debian's renamed binaries; the managed shell setup aliases the short names.
 Some `tcpdump`, `nmap` and low-level networking operations still depend on Linux capabilities the

@@ -10,48 +10,59 @@ RUN npm run build
 FROM debian:trixie-slim
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=Etc/UTC
 ARG APT_MIRROR=http://mirror.bizflycloud.vn/debian
-RUN sed -i "s|http://deb.debian.org/debian$|${APT_MIRROR}|" /etc/apt/sources.list.d/debian.sources && ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
+RUN sed -i "s|http://deb.debian.org/debian$|${APT_MIRROR}|" /etc/apt/sources.list.d/debian.sources
+RUN ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
 
-# ============ bootstrap + third-party repositories ============
+# ============ bootstrap ============
+# One update feeds every layer below on purpose, so a re-run of apt-get update
+# is never repeated per category: the apt index and download cache are kept in
+# the image and every later install layer reuses them. Trade-off: the image is
+# a bit larger, the build is faster and the layer count stays low.
+RUN set -eux; apt-get update; apt-get install -y --no-install-recommends curl ca-certificates gnupg
+
+# ============ third-party repositories ============
 # gnupg is not a build-only dependency here: it stays in the final image as one
 # of the shipped CLI tools, so dearmoring the keys in place costs nothing.
-RUN set -eux; apt-get update; apt-get install -y --no-install-recommends curl ca-certificates gnupg; curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg; curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg; echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$(curl -fsSL https://deb.nodesource.com/setup_lts.x | sed -n 's/^NODE_VERSION="\([0-9][0-9]*\)\.x"$/\1/p').x nodistro main" > /etc/apt/sources.list.d/nodesource.list; echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list; rm -rf /var/lib/apt/lists/*
+# cloudflare-main.gpg is already dearmored upstream, so it is fetched as-is.
+RUN set -eux; curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg; curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg; curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /usr/share/keyrings/cloudflare-main.gpg; echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$(curl -fsSL https://deb.nodesource.com/setup_lts.x | sed -n 's/^NODE_VERSION="\([0-9][0-9]*\)\.x"$/\1/p').x nodistro main" > /etc/apt/sources.list.d/nodesource.list; echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list; echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" > /etc/apt/sources.list.d/cloudflared.list; apt-get update
 
 # ============ packages ============
-# Split into one layer per category so a registry can pull them in parallel and
-# so touching one group does not invalidate the rest of the cache. Each layer
-# runs its own update/cleanup pair; the index is never carried between layers.
+# One layer per category so a registry can pull them in parallel and so touching
+# one group does not invalidate the rest of the cache. No apt-get update and no
+# list cleanup here: the index from the bootstrap step is kept in the image, so
+# every layer installs straight from a fresh index without re-fetching it.
 #
 # No C/C++ toolchain and no CMake anywhere: those are installed per-project
 # through Nix (`nix shell nixpkgs#gcc nixpkgs#cmake`).
 
 # ---- language runtimes ----
-RUN set -eux; apt-get update; apt-get install -y --no-install-recommends nodejs python3 python3-pamela python3-pip python3-venv; rm -rf /var/lib/apt/lists/*
+RUN set -eux; apt-get install -y --no-install-recommends nodejs python3 python3-pamela python3-pip python3-venv
 
 # ---- service infrastructure ----
-RUN set -eux; apt-get update; apt-get install -y --no-install-recommends supervisor nginx openssl dbus dbus-x11 locales tzdata sudo git nix-bin; rm -rf /var/lib/apt/lists/*
+RUN set -eux; apt-get install -y --no-install-recommends supervisor nginx openssl dbus dbus-x11 locales tzdata sudo git nix-bin
 
 # ---- shell and filesystem tools ----
-RUN set -eux; apt-get update; apt-get install -y --no-install-recommends coreutils bash-completion less file tree findutils grep sed gawk diffutils patch procps psmisc util-linux lsof tar gzip bzip2 xz-utils zstd zip unzip 7zip rsync jq sqlite3 vim nano ripgrep fd-find fzf bat eza htop btop fastfetch strace ltrace time binutils xxd binwalk; rm -rf /var/lib/apt/lists/*
+RUN set -eux; apt-get install -y --no-install-recommends coreutils bash-completion less file tree findutils grep sed gawk diffutils patch procps psmisc util-linux lsof tar gzip bzip2 xz-utils zstd zip unzip 7zip rsync jq sqlite3 vim nano ripgrep fd-find fzf bat eza htop btop fastfetch strace ltrace time binutils xxd binwalk
 
 # ---- network tools ----
 # tcpdump, nmap and ping still depend on Linux capabilities the container
 # runtime grants; the image never asks for privileged mode on their behalf.
-RUN set -eux; apt-get update; apt-get install -y --no-install-recommends wget openssh-client iproute2 iputils-ping bind9-dnsutils netcat-openbsd socat traceroute mtr-tiny whois iperf3 nmap tcpdump; rm -rf /var/lib/apt/lists/*
+# cloudflared comes from the Cloudflare apt repo added in the bootstrap step.
+RUN set -eux; apt-get install -y --no-install-recommends wget openssh-client iproute2 iputils-ping bind9-dnsutils netcat-openbsd socat traceroute mtr-tiny whois iperf3 nmap tcpdump cloudflared
 
 # ---- LXQt desktop ----
 # lxqt-core pulls session/panel/runner/notificationd/pcmanfm-qt/qterminal but no
 # window manager, so openbox is explicit. The full `lxqt` metapackage is skipped
 # on purpose -- it drags in an image viewer, archiver, mixer and translations.
-RUN set -eux; apt-get update; apt-get install -y --no-install-recommends lxqt-core lxqt-config lxqt-about openbox pcmanfm-qt qterminal featherpad papirus-icon-theme x11-xserver-utils xauth; rm -rf /var/lib/apt/lists/*
+RUN set -eux; apt-get install -y --no-install-recommends lxqt-core lxqt-config lxqt-about openbox pcmanfm-qt qterminal featherpad papirus-icon-theme x11-xserver-utils xauth
 
 # ---- VNC / noVNC ----
-RUN set -eux; apt-get update; apt-get install -y --no-install-recommends tigervnc-standalone-server novnc websockify; rm -rf /var/lib/apt/lists/*
+RUN set -eux; apt-get install -y --no-install-recommends tigervnc-standalone-server novnc websockify
 
 # ---- Chrome and fonts ----
 # Kept last and together: Chrome is the single largest package here and its
 # rendering depends on these fonts, so they share a layer and a cache lifetime.
-RUN set -eux; apt-get update; apt-get install -y --no-install-recommends google-chrome-stable fonts-liberation fonts-dejavu-core fonts-noto-core; rm -rf /var/lib/apt/lists/*
+RUN set -eux; apt-get install -y --no-install-recommends google-chrome-stable fonts-liberation fonts-dejavu-core fonts-noto-core
 
 # ============ Node global packages ============
 # OpenChamber ships @openchamber/web on npm, so it is installed from the
