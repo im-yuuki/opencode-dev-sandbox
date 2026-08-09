@@ -78,7 +78,7 @@ export function App() {
           gate.boot.authed ? (
             <Navigate to="/" replace />
           ) : (
-            <LoginPage needsSetup={gate.boot.needsSetup} user={gate.boot.user ?? "user"} />
+            <LoginPage needsSetup={gate.boot.needsSetup} />
           )
         }
       />

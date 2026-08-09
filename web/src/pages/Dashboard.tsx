@@ -7,6 +7,7 @@ import {
   Card,
   Chip,
   Header,
+  Link as HeroLink,
   Separator,
   Spinner,
   Typography,
@@ -19,6 +20,7 @@ import {
   RefreshCw,
   Rocket,
   Box,
+  Circle,
   type LucideIcon,
 } from "lucide-react";
 import { api, type AppInfo } from "../api";
@@ -72,21 +74,6 @@ function useApps() {
 const appRunning = (a: AppInfo) =>
   a.members.length > 0 && a.members.every((m) => m.running);
 
-function StatusChip({
-  running,
-  someOn,
-}: {
-  running: boolean;
-  someOn: boolean;
-}) {
-  const color = running ? "success" : someOn ? "warning" : "default";
-  return (
-    <Chip size="sm" variant="soft" color={color}>
-      {running ? "running" : someOn ? "partial" : "stopped"}
-    </Chip>
-  );
-}
-
 function AppRow({
   app,
   busy,
@@ -133,7 +120,12 @@ function AppRow({
               </Avatar.Fallback>
             </Avatar>
             <span className="truncate">{meta?.name ?? app.name}</span>
-            <StatusChip running={running} someOn={someOn} />
+            <Chip
+              size="sm"
+              variant="soft"
+              color={running ? "success" : someOn ? "warning" : "default"}>
+              {running ? "running" : someOn ? "partial" : "stopped"}
+            </Chip>
           </Card.Title>
           <Card.Description className="truncate text-xs">
             {meta?.description}
@@ -145,10 +137,15 @@ function AppRow({
         {/* units collapse on narrow screens: the row keeps name + actions */}
         <Card.Content className="hidden gap-1 lg:flex lg:w-64 lg:shrink-0 lg:grow-0">
           {app.members.map((m) => (
-            <div key={m.unit} className="flex min-w-0 items-center gap-2">
-              <StatusChip running={m.running} someOn={false} />
-              <Typography.Code>{m.unit}</Typography.Code>
-            </div>
+            <Chip
+              key={m.unit}
+              size="sm"
+              variant="tertiary"
+              aria-label={`${m.unit}: ${m.running ? "running" : "stopped"}`}
+              color={m.running ? "success" : "default"}>
+              <Circle aria-hidden size={7} fill="currentColor" />
+              <Typography.Code className="truncate">{m.unit}</Typography.Code>
+            </Chip>
           ))}
         </Card.Content>
 
@@ -175,11 +172,11 @@ function AppRow({
                 <Link
                   to={`/embed/${meta.id}`}
                   className={buttonVariants({
-                    variant: "outline",
+                    variant: "secondary",
                     size: "sm",
                   })}>
                   <Frame size={14} />
-                  Launch
+                  Open
                 </Link>
               ) : null}
             </>
@@ -206,16 +203,13 @@ function AppRow({
               target="_blank"
               rel="noopener"
               aria-disabled={!canOpen}
-              title={canOpen ? undefined : "start the app first"}
+              title={canOpen ? "Open in New Tab" : "Please start the app first"}
               className={buttonVariants({
                 variant: "outline",
                 size: "sm",
-                className: canOpen
-                  ? undefined
-                  : "pointer-events-none opacity-50",
+                className: canOpen ? undefined : "pointer-events-none opacity-50",
               })}>
               <ArrowUpRight size={14} />
-              Open in New Tab
             </a>
           ) : null}
           <Button
@@ -251,17 +245,19 @@ export function Dashboard({ user }: { user: string }) {
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-10 border-b border-zinc-200/70 bg-[#fafafa]/85 backdrop-blur dark:border-zinc-800 dark:bg-[#101114]/85">
+      <header className="sticky top-0 z-10 border-b border-divider bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <a
+          <HeroLink
             href="/"
-            title="Open the Agent (OpenChamber)"
-            className="flex items-center gap-2 text-sm font-semibold tracking-tight">
-            <Box size={16} className="text-zinc-500 dark:text-zinc-400" />
+            aria-label="Open the Agent (OpenChamber)"
+            className="flex items-center gap-2 text-sm font-semibold tracking-tight text-foreground">
+            <Box size={16} className="text-muted" />
             DevBox
-          </a>
+          </HeroLink>
           <div className="flex items-center gap-3">
-            <span className="devbox-label">{user}</span>
+            <Chip size="sm" variant="soft">
+              {user}
+            </Chip>
             <Button
               isIconOnly
               size="sm"

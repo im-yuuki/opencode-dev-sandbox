@@ -1,6 +1,8 @@
 import { useState } from "react";
 import {
+  Avatar,
   Button,
+  Card,
   Description,
   FieldError,
   Form,
@@ -21,10 +23,8 @@ const MIN_LEN = 6;
 
 export function LoginPage({
   needsSetup,
-  user,
 }: {
   needsSetup: boolean;
-  user: string;
 }) {
   // needsSetup comes from the boot gate; switching mid-flight keeps the form
   // usable if the backend disagrees (e.g. a session that revived between calls).
@@ -80,66 +80,70 @@ export function LoginPage({
       <Form
         onSubmit={submit}
         validationErrors={serverErr ? { password: serverErr } : undefined}
-        className="devbox-card w-full max-w-sm p-8"
-      >
-        <div className="mb-1 flex items-center gap-2">
-          <span className="devbox-chip p-2">
-            <SetupIcon size={18} />
-          </span>
-        </div>
-        <h1 className="text-xl font-semibold tracking-tight">
-          {setupMode ? "Set your password" : "DevBox"}
-        </h1>
-        <p className="devbox-label mb-6">
-          {setupMode ? `first visit setup · account ${user}` : "sign in · linux PAM"}
-        </p>
+        className="w-full max-w-sm">
+        <Card className="w-full">
+          <Card.Header className="items-start gap-1">
+            <Avatar size="md" className="mb-1">
+              <Avatar.Fallback>
+                <SetupIcon size={24} />
+              </Avatar.Fallback>
+            </Avatar>
+            <Card.Title className="text-xl tracking-tight">
+              {setupMode ? "Set your password" : "Sign in"}
+            </Card.Title>
+          </Card.Header>
 
-        <TextField
-          name="password"
-          type="password"
-          isRequired
-          minLength={setupMode ? MIN_LEN : undefined}
-          value={pw}
-          onChange={setPw}
-          className="mb-4 flex w-full flex-col gap-1"
-        >
-          <Label className="devbox-label">
-            {setupMode ? "new password" : "password"}
-          </Label>
-          <Input placeholder="your password" />
-          {setupMode ? (
-            <Description className="devbox-muted text-xs">
-              At least {MIN_LEN} characters.
-            </Description>
-          ) : null}
-          <FieldError className="text-sm text-red-600 dark:text-red-400" />
-        </TextField>
+          <Card.Content className="w-full">
+            <TextField
+              name="password"
+              type="password"
+              isRequired
+              minLength={setupMode ? MIN_LEN : undefined}
+              value={pw}
+              onChange={setPw}
+              className="mb-4 flex w-full flex-col gap-1">
+              <Label className="text-xs font-semibold tracking-wider uppercase text-muted">
+                {setupMode ? "new password" : "password"}
+              </Label>
+              <Input placeholder="your unix password" />
+              {setupMode ? (
+                <Description className="text-xs text-muted">
+                  At least {MIN_LEN} characters.
+                </Description>
+              ) : null}
+              <FieldError className="text-sm text-danger" />
+            </TextField>
 
-        {setupMode ? (
-          <TextField
-            name="confirm"
-            type="password"
-            isRequired
-            value={confirm}
-            onChange={setConfirm}
-            // Runs on submit and again on each edit once the field is invalid.
-            validate={(v) => (v === pw ? null : "Passwords do not match.")}
-            className="mb-4 flex w-full flex-col gap-1"
-          >
-            <Label className="devbox-label">confirm password</Label>
-            <Input placeholder="repeat" />
-            <FieldError className="text-sm text-red-600 dark:text-red-400" />
-          </TextField>
-        ) : null}
+            {setupMode ? (
+              <TextField
+                name="confirm"
+                type="password"
+                isRequired
+                value={confirm}
+                onChange={setConfirm}
+                // Runs on submit and again on each edit once the field is invalid.
+                validate={(v) => (v === pw ? null : "Passwords do not match.")}
+                className="flex w-full flex-col gap-1">
+                <Label className="text-xs font-semibold tracking-wider uppercase text-muted">
+                  confirm password
+                </Label>
+                <Input placeholder="repeat" />
+                <FieldError className="text-sm text-danger" />
+              </TextField>
+            ) : null}
+          </Card.Content>
 
-        <Button type="submit" variant="primary" isPending={busy} fullWidth>
-          {({ isPending }) => (
-            <>
-              {isPending ? <Spinner color="current" size="sm" /> : null}
-              {setupMode ? "Create password" : "Sign in"}
-            </>
-          )}
-        </Button>
+          <Card.Footer className="w-full">
+            <Button type="submit" variant="primary" isPending={busy} fullWidth>
+              {({ isPending }) => (
+                <>
+                  {isPending ? <Spinner color="current" size="sm" /> : null}
+                  {setupMode ? "Create password" : "Sign in"}
+                </>
+              )}
+            </Button>
+          </Card.Footer>
+        </Card>
       </Form>
     </div>
   );

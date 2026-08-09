@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from "react-router";
-import { Button, buttonVariants } from "@heroui/react";
+import { Avatar, Button, Card, Typography, buttonVariants } from "@heroui/react";
 import {
   Lock,
   LogIn,
@@ -92,17 +92,23 @@ export function ErrorPage({ code: fixed }: { code?: number } = {}) {
 
   return (
     <div className="grid h-screen place-items-center px-4">
-      <div className="devbox-card w-full max-w-sm p-8">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="devbox-chip p-2">
-            <Icon size={18} />
-          </span>
-        </div>
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-        <p className="devbox-label mb-4">error {code}</p>
-        <p className="devbox-muted mb-6 text-sm">{detail}</p>
+      <Card className="w-full max-w-sm">
+        <Card.Header className="items-start gap-1">
+          <Avatar size="md" className="mb-1">
+            <Avatar.Fallback>
+              <Icon size={24} />
+            </Avatar.Fallback>
+          </Avatar>
+          <Card.Title className="text-xl tracking-tight">{title}</Card.Title>
+        </Card.Header>
 
-        <div className="flex flex-col gap-2">
+        <Card.Content>
+          <Typography.Paragraph color="muted" size="sm">
+            {code}: {detail}
+          </Typography.Paragraph>
+        </Card.Content>
+
+        <Card.Footer className="flex-col gap-2">
           {code === 401 ? (
             <Link
               to="/login"
@@ -123,8 +129,8 @@ export function ErrorPage({ code: fixed }: { code?: number } = {}) {
             <RefreshCw size={14} />
             Retry
           </Button>
-        </div>
-      </div>
+        </Card.Footer>
+      </Card>
     </div>
   );
 }
