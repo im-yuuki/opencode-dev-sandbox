@@ -42,14 +42,6 @@ function formatBytes(n: number | null | undefined): string {
 const formatRate = (n: number | null | undefined) =>
   n == null ? "—" : `${formatBytes(n)}/s`;
 
-function clock(ms: number | null): string {
-  if (ms == null) return "—";
-  const d = new Date(ms);
-  const hh = d.getHours().toString().padStart(2, "0");
-  const mm = d.getMinutes().toString().padStart(2, "0");
-  const ss = d.getSeconds().toString().padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-}
 
 interface TileProps {
   sample: MetricsSample | null;
@@ -170,12 +162,12 @@ function CpuTile({ sample, history }: TileProps) {
         <div className="flex flex-wrap items-center gap-1.5">
           {hostCores != null ? (
             <Chip size="sm" variant="tertiary" className="text-muted">
-              {hostCores} {(hostCores === 1 ? "core" : "cores")}
+              {hostCores} {hostCores === 1 ? "core" : "cores"}
             </Chip>
           ) : null}
           {quotaText != null ? (
             <Chip size="sm" variant="tertiary" className="text-muted">
-              quota {quotaText} {(capacityCores === 1 ? "core" : "cores")}
+              quota {quotaText} {capacityCores === 1 ? "core" : "cores"}
             </Chip>
           ) : null}
         </div>
@@ -206,8 +198,7 @@ function GpuTile({ sample, history }: TileProps) {
       };
     })
     .filter(
-      (d): d is { at: number; util: number; memory: number } =>
-        d.util != null,
+      (d): d is { at: number; util: number; memory: number } => d.util != null,
     );
   return (
     <Card className="h-full">
@@ -285,10 +276,7 @@ function LoadTile({ sample, history }: TileProps) {
   }));
   return (
     <Card className="h-full">
-      <TileHeader
-        icon={Gauge}
-        title="Load"
-      />
+      <TileHeader icon={Gauge} title="Load" />
       <Card.Content className="flex flex-col gap-3">
         <div>
           <div className="text-2xl font-semibold tabular-nums">
@@ -326,10 +314,10 @@ function LoadTile({ sample, history }: TileProps) {
           {load ? (
             <>
               <Chip size="sm" variant="tertiary" className="text-muted">
-                5min {load.five.toFixed(2)}
+                5m {load.five.toFixed(2)}
               </Chip>
               <Chip size="sm" variant="tertiary" className="text-muted">
-                15min {load.fifteen.toFixed(2)}
+                15m {load.fifteen.toFixed(2)}
               </Chip>
             </>
           ) : (
@@ -456,30 +444,7 @@ function NetworkTile({ sample, history }: TileProps) {
   }));
   return (
     <Card className="h-full">
-      <TileHeader
-        icon={Network}
-        title="Network"
-        right={
-          <div className="flex items-center gap-2 text-xs tabular-nums">
-            <span className="flex items-center gap-1 text-muted">
-              <span
-                aria-hidden
-                className="size-2 rounded-full"
-                style={{ background: CHART_COLORS.primary }}
-              />
-              download
-            </span>
-            <span className="flex items-center gap-1 text-muted">
-              <span
-                aria-hidden
-                className="size-2 rounded-full"
-                style={{ background: CHART_COLORS.warning }}
-              />
-              upload
-            </span>
-          </div>
-        }
-      />
+      <TileHeader icon={Network} title="Network" />
       <Card.Content className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -487,7 +452,7 @@ function NetworkTile({ sample, history }: TileProps) {
               {formatRate(rx)}
             </div>
             <Typography.Paragraph className="text-xs text-muted">
-              received/s
+              download
             </Typography.Paragraph>
           </div>
           <div>
@@ -495,7 +460,7 @@ function NetworkTile({ sample, history }: TileProps) {
               {formatRate(tx)}
             </div>
             <Typography.Paragraph className="text-xs text-muted">
-              sent/s
+              upload
             </Typography.Paragraph>
           </div>
         </div>
@@ -534,7 +499,7 @@ function LoadingTiles() {
 }
 
 export function SystemMetrics() {
-  const { sample, history, status, lastUpdated } = useSystemMetrics();
+  const { sample, history, status } = useSystemMetrics();
 
   if (status === "error") {
     return (
@@ -543,8 +508,7 @@ export function SystemMetrics() {
         <Card>
           <Card.Content>
             <Typography.Paragraph className="text-xs text-muted">
-              System metrics are unavailable — the metrics API could not be
-              reached.
+              System metrics are unavailable — the metrics API could not be reached.
             </Typography.Paragraph>
           </Card.Content>
         </Card>
@@ -569,13 +533,13 @@ export function SystemMetrics() {
         <Header className="px-0 uppercase tracking-wider">system</Header>
         <div className="flex items-center gap-2">
           {status ? (
-            <Chip size="sm" variant="soft" color={status === "ready" ? "success" : "warning"}>
+            <Chip
+              size="sm"
+              variant="soft"
+              color={status === "ready" ? "success" : "warning"}>
               {status}
             </Chip>
           ) : null}
-          <span className="text-xs text-muted tabular-nums">
-            {clock(lastUpdated ?? 0)}
-          </span>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

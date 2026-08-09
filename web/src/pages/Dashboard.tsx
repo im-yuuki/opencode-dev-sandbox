@@ -14,15 +14,16 @@ import {
   buttonVariants,
 } from "@heroui/react";
 import {
-  ArrowUpRight,
+  ExternalLink,
   Frame,
   LogOut,
   RefreshCw,
-  Rocket,
   Box,
   Circle,
   type LucideIcon,
   User,
+  Play,
+  Square,
 } from "lucide-react";
 import { api, type AppInfo } from "../api";
 import { SystemMetrics } from "../components/SystemMetrics";
@@ -167,7 +168,7 @@ function AppRow({
                 onPress={() => onAction("stop")}>
                 {({ isPending }) => (
                   <>
-                    {isPending ? <Spinner color="current" size="sm" /> : null}
+                    {isPending ? <Spinner color="current" size="sm" /> : <Square size={14} />}
                     Stop
                   </>
                 )}
@@ -193,8 +194,7 @@ function AppRow({
               onPress={onLaunch}>
               {({ isPending }) => (
                 <>
-                  {isPending ? <Spinner color="current" size="sm" /> : null}
-                  <Rocket size={14} />
+                  {isPending ? <Spinner color="current" size="sm" /> : <Play size={14} />}
                   Launch
                 </>
               )}
@@ -215,7 +215,7 @@ function AppRow({
                   ? undefined
                   : "pointer-events-none opacity-50",
               })}>
-              <ArrowUpRight size={14} />
+              <ExternalLink size={14} />
             </a>
           ) : null}
           <Button
