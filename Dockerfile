@@ -8,12 +8,12 @@ RUN npm run build
 
 # ============ stage 2: final image ============
 FROM debian:trixie
-ENV DEBIAN_FRONTEND=noninteractive container=docker LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=Etc/UTC
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=Etc/UTC
 ARG APT_MIRROR=http://mirror.bizflycloud.vn/debian
 RUN sed -i "s|http://deb.debian.org/debian$|${APT_MIRROR}|" /etc/apt/sources.list.d/debian.sources
 
 # ============ bootstrap ============
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates gnupg && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates gnupg
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
 
 # ============ third-party repositories ============
@@ -23,36 +23,37 @@ RUN test -s /tmp/node-major
 RUN echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$(cat /tmp/node-major).x nodistro main" > /etc/apt/sources.list.d/nodesource.list
 RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
 RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+RUN apt-get update
 
 # ============ node.js ============
-RUN apt-get update && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y --no-install-recommends nodejs
 
 # ============ python ============
-RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pamela python3-pip python3-venv && rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y --no-install-recommends python3 python3-pamela python3-pip python3-venv
 
 # ============ base system ============
-RUN apt-get update && apt-get install -y --no-install-recommends supervisor dbus locales tzdata sudo git vim htop fastfetch jq unzip zip p7zip-full && rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y --no-install-recommends supervisor dbus locales tzdata sudo git vim htop fastfetch jq unzip zip p7zip-full
 
 # ============ development toolchain ============
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake && rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y --no-install-recommends build-essential cmake
 
 # ============ web server ============
-RUN apt-get update && apt-get install -y --no-install-recommends openssl nginx && rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y --no-install-recommends openssl nginx
 
 # ============ LXQt ============
 # lxqt-core pulls session/panel/runner/notificationd/pcmanfm-qt/qterminal but no
 # window manager, so openbox is explicit. The full `lxqt` metapackage is skipped
 # on purpose: it drags in an image viewer, archiver, mixer and translations.
-RUN apt-get update && apt-get install -y --no-install-recommends lxqt-core lxqt-config openbox pcmanfm-qt qterminal featherpad papirus-icon-theme dbus-x11 x11-xserver-utils xauth && rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y --no-install-recommends lxqt-core lxqt-config lxqt-about openbox pcmanfm-qt qterminal featherpad papirus-icon-theme dbus-x11 x11-xserver-utils xauth
 
 # ============ VNC / noVNC ============
-RUN apt-get update && apt-get install -y --no-install-recommends tigervnc-standalone-server novnc websockify && rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y --no-install-recommends tigervnc-standalone-server novnc websockify
 
 # ============ Google Chrome ============
-RUN apt-get update && apt-get install -y --no-install-recommends google-chrome-stable && rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y --no-install-recommends google-chrome-stable
 
 # ============ fonts ============
-RUN apt-get update && apt-get install -y --no-install-recommends fonts-liberation fonts-dejavu-core fonts-noto-core && rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y --no-install-recommends fonts-liberation fonts-dejavu-core fonts-noto-core
 
 # ============ OpenCode ============
 RUN npm install -g opencode-ai

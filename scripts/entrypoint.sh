@@ -54,9 +54,71 @@ su -s /bin/bash "$WEB_USER" -c '
     printf "[General]\nwindow_manager=openbox\n" \
       > "$HOME/.config/lxqt/session.conf"
   fi
+  # Arch-Colors provides the desktop chrome while the Dark palette colors Qt
+  # applications. Upgrade the old devbox seed (which had no explicit theme),
+  # but preserve any theme the user has already selected.
   if [ ! -f "$HOME/.config/lxqt/lxqt.conf" ]; then
-    printf "[General]\nicon_theme=Papirus\n" \
-      > "$HOME/.config/lxqt/lxqt.conf"
+    cp /etc/devbox/lxqt.conf "$HOME/.config/lxqt/lxqt.conf"
+  elif ! grep -q "^theme=" "$HOME/.config/lxqt/lxqt.conf"; then
+    appearance_tmp="$HOME/.config/lxqt/lxqt.conf.devbox-new"
+    while IFS= read -r appearance_line; do
+      printf "%s\n" "$appearance_line"
+      if [ "$appearance_line" = "[General]" ]; then
+        printf "theme=Arch-Colors\npalette_override=true\n"
+      fi
+    done < "$HOME/.config/lxqt/lxqt.conf" > "$appearance_tmp"
+    printf "\n[Palette]\n" >> "$appearance_tmp"
+    sed -n "/^\[Palette\]$/,/^$/p" /etc/devbox/lxqt.conf | sed "1d" \
+      >> "$appearance_tmp"
+    mv "$appearance_tmp" "$HOME/.config/lxqt/lxqt.conf"
+  fi
+
+  # Restore the previous managed Qt style on workspaces created by the brief
+  # alternate-style experiment. Other user-selected styles still win.
+  if grep -q "^theme=Arch-Colors$" "$HOME/.config/lxqt/lxqt.conf" \
+     && grep -q "^style=kvantum$" "$HOME/.config/lxqt/lxqt.conf"; then
+    sed -i "s/^style=kvantum$/style=Fusion/" "$HOME/.config/lxqt/lxqt.conf"
+  fi
+
+  # LXQt implements pinned launchers with the quicklaunch panel plugin. Seed
+  # the three daily-use apps on a fresh workspace. For a workspace that already
+  # has the stock, empty quicklaunch section, add the same defaults once; leave
+  # any existing launcher array alone so user ordering/customization wins.
+  if [ ! -f "$HOME/.config/lxqt/panel.conf" ]; then
+    cp /etc/devbox/lxqt-panel.conf "$HOME/.config/lxqt/panel.conf"
+  elif grep -Fxq "[quicklaunch]" "$HOME/.config/lxqt/panel.conf" \
+       && ! grep -Fq "apps\\size=" "$HOME/.config/lxqt/panel.conf"; then
+    panel_tmp="$HOME/.config/lxqt/panel.conf.devbox-new"
+    while IFS= read -r panel_line; do
+      printf "%s\n" "$panel_line"
+      if [ "$panel_line" = "[quicklaunch]" ]; then
+        printf "apps\\\\1\\\\desktop=/usr/share/applications/pcmanfm-qt.desktop\n"
+        printf "apps\\\\2\\\\desktop=/usr/share/applications/qterminal.desktop\n"
+        printf "apps\\\\3\\\\desktop=/usr/share/applications/google-chrome.desktop\n"
+        printf "apps\\\\size=3\n"
+      fi
+    done < "$HOME/.config/lxqt/panel.conf" > "$panel_tmp"
+    mv "$panel_tmp" "$HOME/.config/lxqt/panel.conf"
+  fi
+
+  # Some icon themes do not satisfy the fancymenu stylesheet icon lookup. Pin
+  # a packaged PNG explicitly (SVG custom icons render blank in LXQt 2.1),
+  # while retaining a user-selected icon.
+  if grep -Fxq "[fancymenu]" "$HOME/.config/lxqt/panel.conf" \
+     && ! grep -q "^ownIcon=" "$HOME/.config/lxqt/panel.conf"; then
+    panel_tmp="$HOME/.config/lxqt/panel.conf.devbox-icon"
+    while IFS= read -r panel_line; do
+      printf "%s\n" "$panel_line"
+      if [ "$panel_line" = "[fancymenu]" ]; then
+        printf "ownIcon=true\n"
+        printf "icon=/usr/share/lxqt/graphics/helix_blue_shadow.png\n"
+      fi
+    done < "$HOME/.config/lxqt/panel.conf" > "$panel_tmp"
+    mv "$panel_tmp" "$HOME/.config/lxqt/panel.conf"
+  elif grep -Fq "icon=/usr/share/icons/hicolor/scalable/places/start-here-lxqt.svg" \
+       "$HOME/.config/lxqt/panel.conf"; then
+    sed -i "s|^icon=/usr/share/icons/hicolor/scalable/places/start-here-lxqt.svg$|icon=/usr/share/lxqt/graphics/helix_blue_shadow.png|" \
+      "$HOME/.config/lxqt/panel.conf"
   fi
 '
 
