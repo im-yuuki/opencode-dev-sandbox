@@ -9,7 +9,7 @@
 
 server:
   # Loopback only. There is no internal authentication (see auth.methods.noauth
-  # below), so the DevBox nginx/PAM session gate is the *only* thing standing in
+  # below), so the opencode-dev-sanbox nginx/PAM session gate is the *only* thing standing in
   # front of the filesystem. Port 9104 must never be published.
   listen: "127.0.0.1"
   port: 9104
@@ -33,13 +33,13 @@ server:
 
 auth:
   methods:
-    # Single-user trusted DevBox: a second password in front of the file manager
+    # Single-user trusted opencode-dev-sanbox: a second password in front of the file manager
     # would add no isolation (same uid as the agent) and would break the
     # single-sign-on feel of the launcher.
     noauth: true
 
 frontend:
-  name: "DevBox Workspace"
+  name: "opencode-dev-sanbox Workspace"
   disableUsedPercentage: false
 
 userDefaults:
@@ -65,5 +65,5 @@ userDefaults:
       download: true
       realtime: true
       # No public share exception: every /files/ URL, share links included,
-      # stays behind the DevBox session gate.
+      # stays behind the opencode-dev-sanbox session gate.
       share: false

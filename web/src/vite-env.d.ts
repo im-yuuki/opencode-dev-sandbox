@@ -4,5 +4,4 @@ declare const __DEVBOX_BUILD_INFO__: {
   branch: string
   commit: string
   dirty: boolean | null
-  repository: string
 }

@@ -1,4 +1,4 @@
-# Managed interactive-shell setup for the DevBox, sourced from ~/.bashrc by a
+# Managed interactive-shell setup for the opencode-dev-sanbox, sourced from ~/.bashrc by a
 # block the entrypoint appends once (marker: "# devbox managed shell setup").
 #
 # Everything here must be safe to source repeatedly and must lose to whatever

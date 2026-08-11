@@ -238,6 +238,13 @@ chmod 644 "$TLS_CRT"
 mkdir -p /run/user/1000
 chown "$WEB_USER:$WEB_USER" /run/user/1000
 chmod 700 /run/user/1000
+# tmux servers cannot survive a container stop, so remove their old runtime
+# socket directory at container startup. A Supervisor restart of only the
+# broker never runs this script and therefore leaves sessions untouched.
+rm -rf /run/user/1000/devbox-terminal
+mkdir -p /run/user/1000/devbox-terminal
+chown "$WEB_USER:$WEB_USER" /run/user/1000/devbox-terminal
+chmod 700 /run/user/1000/devbox-terminal
 mkdir -p /run/dbus
 chown messagebus:messagebus /run/dbus
 mkdir -p /var/run/nginx

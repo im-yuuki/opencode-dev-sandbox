@@ -12,6 +12,9 @@ const Dashboard = lazy(() =>
 const ErrorPage = lazy(() =>
   import("./pages/Error").then(({ ErrorPage }) => ({ default: ErrorPage })),
 );
+const TerminalPage = lazy(() =>
+  import("./pages/Terminal").then(({ TerminalPage }) => ({ default: TerminalPage })),
+);
 
 function PageFallback() {
   return (
@@ -108,6 +111,14 @@ export function App() {
         element={
           <RequireAuth gate={gate}>
             <Dashboard user={gate.boot.user ?? "user"} />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/terminal"
+        element={
+          <RequireAuth gate={gate}>
+            <TerminalPage />
           </RequireAuth>
         }
       />

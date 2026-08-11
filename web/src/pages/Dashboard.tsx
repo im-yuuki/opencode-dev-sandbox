@@ -6,7 +6,7 @@ import {
   Card,
   Chip,
   Header,
-  Link as HeroLink,
+  Link,
   Separator,
   Spinner,
   Typography,
@@ -231,7 +231,6 @@ export function Dashboard({ user }: { user: string }) {
           __DEVBOX_BUILD_INFO__.dirty ? "-dirty" : ""
         }`
       : "unknown";
-  const repository = __DEVBOX_BUILD_INFO__.repository;
 
   // Launch: start the service (the state persists across container restarts)
   // and refresh the row. Opening the app is left to the user's "Open in New
@@ -243,13 +242,13 @@ export function Dashboard({ user }: { user: string }) {
     <div className="min-h-full">
       <header className="sticky top-0 z-10 border-b border-divider bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <HeroLink
+          <Link
             href="/launcher/"
             aria-label="Open the Dashboard"
             className="flex items-center gap-3 text-sm font-semibold tracking-tight text-foreground">
             <Box size={24} className="text-muted" />
-            DevBox
-          </HeroLink>
+            opencode-dev-sanbox
+          </Link>
           <div className="flex items-center gap-3">
             <Chip size="sm" variant="soft">
               <User size={12} />
@@ -301,19 +300,15 @@ export function Dashboard({ user }: { user: string }) {
       </main>
       <footer className="border-t border-divider px-6 py-4">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-          <span>build: {build}</span>
+          <span>Build: {build}</span>
           <span aria-hidden>·</span>
-          {repository === "unavailable" ? (
-            <span>GitHub unavailable</span>
-          ) : (
-            <a
-              href={repository}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline-offset-2 hover:underline">
-              GitHub
-            </a>
-          )}
+          <a
+            href="https://github.com/im-yuuki/opencode-dev-sandbox"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline-offset-2 hover:underline">
+            GitHub
+          </a>
           <span aria-hidden>·</span>
           <a
             href="https://hub.docker.com/r/imyuuki/opencode-dev-sandbox"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DevBox control plane.
+"""opencode-dev-sanbox control plane.
 
 Single-process ThreadingHTTPServer bound to 127.0.0.1, used by nginx as:
   * a PAM authentication + session backend (replaces HTTP basic auth)
@@ -61,6 +61,7 @@ APPS = {
         "CLI Proxy",
         [("cliproxyapi", "CLIProxyAPI + Management Center")],
     ),
+    "terminal": ("Terminal", [("web-terminal", "Persistent tmux web terminal")]),
 }
 ACTIONS = {"start", "stop", "restart"}
 
@@ -362,7 +363,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._metrics_stream()
         if path == "/api/v1/cliproxy-key":
             # The launcher bootstrap page uses GET to retrieve the key after
-            # the DevBox session has authenticated. Keep this endpoint behind
+            # the opencode-dev-sanbox session has authenticated. Keep this endpoint behind
             # the same PAM-backed session gate as the rest of the control API.
             if not self._authed_user():
                 return self._send({"error": "unauthorized"}, 401)

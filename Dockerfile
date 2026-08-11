@@ -22,7 +22,11 @@ RUN ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
 # final image. The cache mounts are shared across rebuilds and architectures.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    set -eux; apt-get update; apt-get install -y --no-install-recommends curl ca-certificates gnupg
+    set -eux; apt-get update; apt-get install -y --no-install-recommends aria2 curl wget ca-certificates gnupg
+
+# aria2 is reserved for large package archives. Eight connections are enough
+# to improve a slow single stream without creating excessive server load.
+ENV ARIA2_OPTS="--console-log-level=error --summary-interval=0 --download-result=hide --file-allocation=none -x 8 -s 8"
 
 # ============ third-party repository keys ============
 # gnupg is not a build-only dependency here: it stays in the final image as one
@@ -37,7 +41,9 @@ RUN set -eux; \
 # Node's major version is pinned to the current LTS at build time, resolved once
 # from setup_lts.x rather than maintaining a static major here.
 RUN set -eux; \
-    echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$(curl -fsSL https://deb.nodesource.com/setup_lts.x | sed -n 's/^NODE_VERSION="\([0-9][0-9]*\)\.x"$/\1/p').x nodistro main" > /etc/apt/sources.list.d/nodesource.list; \
+    node_major="$(curl -fsSL https://deb.nodesource.com/setup_lts.x | sed -n 's/^NODE_VERSION="\([0-9][0-9]*\)\.x"$/\1/p')"; \
+    test -n "$node_major"; \
+    echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${node_major}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list; \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list; \
     echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" > /etc/apt/sources.list.d/cloudflared.list
 
@@ -52,7 +58,7 @@ RUN set -eux; \
 # ---- language runtimes ----
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    set -eux; apt-get update; apt-get install -y --no-install-recommends nodejs python3 python3-pamela python3-pip python3-venv
+    set -eux; apt-get update; apt-get install -y --no-install-recommends nodejs python3 python3-aiohttp python3-pamela python3-pip python3-venv
 
 # ---- service infrastructure ----
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -62,7 +68,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # ---- shell and filesystem tools ----
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    set -eux; apt-get update; apt-get install -y --no-install-recommends coreutils bash-completion less file tree findutils grep sed gawk diffutils patch procps psmisc util-linux lsof tar gzip bzip2 xz-utils zstd zip unzip 7zip rsync jq sqlite3 vim nano ripgrep fd-find fzf bat eza htop btop fastfetch strace ltrace time binutils xxd binwalk
+    set -eux; apt-get update; apt-get install -y --no-install-recommends coreutils bash-completion less file tree findutils grep sed gawk diffutils procps psmisc util-linux lsof tmux tar gzip bzip2 xz-utils zstd zip unzip 7zip rsync jq sqlite3 vim nano ripgrep fd-find fzf bat eza htop btop fastfetch strace ltrace time binutils xxd binwalk
 
 # ---- network tools ----
 # tcpdump, nmap and ping still depend on Linux capabilities the container
@@ -70,7 +76,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # cloudflared comes from the Cloudflare apt repo added in the bootstrap step.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    set -eux; apt-get update; apt-get install -y --no-install-recommends wget openssh-client iproute2 iputils-ping bind9-dnsutils netcat-openbsd socat traceroute mtr-tiny whois iperf3 nmap tcpdump cloudflared
+    set -eux; apt-get update; apt-get install -y --no-install-recommends openssh-client iproute2 iputils-ping bind9-dnsutils netcat-openbsd socat traceroute mtr-tiny whois iperf3 nmap tcpdump cloudflared
 
 # ---- LXQt desktop ----
 # lxqt-core pulls session/panel/runner/notificationd/pcmanfm-qt/qterminal but no
@@ -101,7 +107,7 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     set -eux; npm install -g --no-audit --no-fund opencode-ai @openchamber/web; rm -rf /tmp/*
 
 # ============ code-server ============
-RUN set -eux; arch="$(dpkg --print-architecture)"; ver="$(curl -fsSL https://api.github.com/repos/coder/code-server/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"; test -n "$ver"; curl -fsSL -o /tmp/cs.tar.gz "https://github.com/coder/code-server/releases/download/v${ver}/code-server-${ver}-linux-${arch}.tar.gz"; mkdir -p /usr/local/lib/code-server; tar -xzf /tmp/cs.tar.gz -C /usr/local/lib/code-server --strip-components=1; rm -rf /tmp/cs.tar.gz
+RUN set -eux; arch="$(dpkg --print-architecture)"; ver="$(curl -fsSL https://api.github.com/repos/coder/code-server/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"; test -n "$ver"; aria2c $ARIA2_OPTS -o /tmp/cs.tar.gz "https://github.com/coder/code-server/releases/download/v${ver}/code-server-${ver}-linux-${arch}.tar.gz"; mkdir -p /usr/local/lib/code-server; tar -xzf /tmp/cs.tar.gz -C /usr/local/lib/code-server --strip-components=1; rm -rf /tmp/cs.tar.gz
 
 # ============ FileBrowser Quantum ============
 # gtsteffaniak/filebrowser, Apache-2.0.
@@ -111,7 +117,7 @@ RUN set -eux; arch="$(dpkg --print-architecture)"; curl -fsSL -o /usr/local/bin/
 # MIT. The default (glibc/plugin) build is fine: trixie is well past the
 # GLIBC 2.17 baseline. Upstream names the 64-bit ARM archive aarch64, not arm64.
 # The panel asset is baked in so the proxy never has to fetch it at runtime.
-RUN set -eux; case "$(dpkg --print-architecture)" in amd64) arch=amd64 ;; arm64) arch=aarch64 ;; *) echo "unsupported architecture" >&2; exit 1 ;; esac; ver="$(curl -fsSL https://api.github.com/repos/router-for-me/CLIProxyAPI/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"; test -n "$ver"; curl -fsSL -o /tmp/cliproxy.tar.gz "https://github.com/router-for-me/CLIProxyAPI/releases/download/v${ver}/CLIProxyAPI_${ver}_linux_${arch}.tar.gz"; mkdir -p /tmp/cliproxy; tar -xzf /tmp/cliproxy.tar.gz -C /tmp/cliproxy cli-proxy-api; install -D -m 0755 /tmp/cliproxy/cli-proxy-api /usr/local/bin/cliproxyapi; install -d -m 0755 /opt/cliproxy/static; curl -fsSL -o /opt/cliproxy/static/management.html "https://github.com/router-for-me/Cli-Proxy-API-Management-Center/releases/latest/download/management.html"; chmod 0644 /opt/cliproxy/static/management.html; rm -rf /tmp/cliproxy /tmp/cliproxy.tar.gz
+RUN set -eux; case "$(dpkg --print-architecture)" in amd64) arch=amd64 ;; arm64) arch=aarch64 ;; *) echo "unsupported architecture" >&2; exit 1 ;; esac; ver="$(curl -fsSL https://api.github.com/repos/router-for-me/CLIProxyAPI/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"; test -n "$ver"; aria2c $ARIA2_OPTS -o /tmp/cliproxy.tar.gz "https://github.com/router-for-me/CLIProxyAPI/releases/download/v${ver}/CLIProxyAPI_${ver}_linux_${arch}.tar.gz"; mkdir -p /tmp/cliproxy; tar -xzf /tmp/cliproxy.tar.gz -C /tmp/cliproxy cli-proxy-api; install -D -m 0755 /tmp/cliproxy/cli-proxy-api /usr/local/bin/cliproxyapi; install -d -m 0755 /opt/cliproxy/static; curl -fsSL -o /opt/cliproxy/static/management.html "https://github.com/router-for-me/Cli-Proxy-API-Management-Center/releases/latest/download/management.html"; chmod 0644 /opt/cliproxy/static/management.html; rm -rf /tmp/cliproxy /tmp/cliproxy.tar.gz
 
 # ============ user account ============
 # Member of the sudo group with no sudoers drop-in: escalation goes through the

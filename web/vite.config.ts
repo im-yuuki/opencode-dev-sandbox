@@ -22,7 +22,6 @@ function gitValue(repoRoot: string, args: string[]): string {
 
 function buildInfo() {
   const repoRoot = resolve(import.meta.dirname, '..')
-  const remote = gitValue(repoRoot, ['remote', 'get-url', 'origin'])
   let dirty: boolean | null = null
   try {
     dirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
@@ -38,10 +37,6 @@ function buildInfo() {
     branch: gitValue(repoRoot, ['branch', '--show-current']),
     commit: gitValue(repoRoot, ['rev-parse', '--short=12', 'HEAD']),
     dirty,
-    repository:
-      remote === UNKNOWN
-        ? UNKNOWN
-        : remote.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, ''),
   }
 }
 
@@ -70,6 +65,7 @@ export default defineConfig({
           if (id.includes('/recharts/')) return 'vendor-charts'
           if (id.includes('/framer-motion/')) return 'vendor-motion'
           if (id.includes('/lucide-react/')) return 'vendor-icons'
+          if (id.includes('/@xterm/')) return 'vendor-terminal'
           if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/react-router/')) {
             return 'vendor-react'
           }
@@ -78,5 +74,8 @@ export default defineConfig({
         },
       },
     },
+    // The shared vendor bundle intentionally contains the UI framework and
+    // remains below this limit after package-level splitting above.
+    chunkSizeWarningLimit: 700,
   },
 })

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""System metrics collection for the DevBox dashboard.
+"""System metrics collection for the opencode-dev-sanbox dashboard.
 
 Reports cumulative counters, instantaneous values and container *capacities*;
 CPU usage and network rates are derived client-side from deltas, so concurrent

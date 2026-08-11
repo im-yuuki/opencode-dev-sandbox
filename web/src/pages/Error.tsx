@@ -25,7 +25,7 @@ const ERRORS: Record<number, ErrorDef> = {
   },
   401: {
     title: "Session expired",
-    detail: "This page needs a signed-in DevBox session.",
+    detail: "This page needs a signed-in opencode-dev-sanbox session.",
     icon: Lock,
   },
   403: {

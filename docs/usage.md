@@ -1,6 +1,6 @@
 # Usage notes
 
-Detailed operating notes for the DevBox. The [README](../README.md) covers the quick start; this
+Detailed operating notes for the opencode-dev-sanbox. The [README](../README.md) covers the quick start; this
 page goes deeper on sudo, Nix, the CLI proxy, the OpenCode config, TLS and Chrome's sandbox.
 
 - [Sudo](#sudo)
@@ -69,7 +69,7 @@ Management Center panel baked into the image so it is available offline.
 
 1. Launch **CLI Proxy** from the dashboard.
 2. Open **CLI Proxy** from the dashboard — the new tab goes through a small
-   bootstrap page that seeds your already-started DevBox session into the panel,
+   bootstrap page that seeds your already-started opencode-dev-sanbox session into the panel,
    so there is no second login and no prompt for the management key.
 3. Add providers and create proxy API keys there. None are seeded for you.
 4. Point in-container agents and CLIs at the proxy:
@@ -168,8 +168,20 @@ binds loopback only:
 | Control API (devbox-api) | `127.0.0.1:9102` | `/launcher/api/` |
 | Desktop bridge (websockify) | `127.0.0.1:9103` | `/vnc/` |
 | Files (FileBrowser) | `127.0.0.1:9104` | `/files/` |
+| Web terminal broker | `127.0.0.1:9105` | `/terminal/api/`, `/terminal/ws/` |
 | CLI Proxy (CLIProxyAPI) | `127.0.0.1:8317` | `/management.html` only |
 
-Internal services sit at 9100–9104, so dev servers you run inside the box (3000, 5173, 8080, …)
+Internal services sit at 9100–9105, so dev servers you run inside the box (3000, 5173, 8080, …)
 never collide. CLIProxyAPI is the exception at 8317, outside that range: it keeps the upstream
 default port so provider documentation and agent configs work unchanged.
+
+## Web terminal sessions
+
+The Terminal application stores each tab as a private tmux session. A browser WebSocket is only an
+attachment to that session: closing the tab, closing the browser or losing the network does not
+terminate the shell or commands running inside it. Reopen the Terminal application to enumerate
+existing sessions and reconnect automatically.
+
+The **Kill** action is separate from detaching a tab and terminates the tmux session. Sessions and
+their processes cannot survive `docker restart` or container recreation because they are runtime
+processes, not files on `/workspace`.

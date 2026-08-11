@@ -1,5 +1,5 @@
 {
-  // Seed config for OpenCode inside the DevBox, copied once to
+  // Seed config for OpenCode inside the opencode-dev-sanbox, copied once to
   // ~/.config/opencode/opencode.jsonc on first start. The entrypoint never
   // rewrites it afterwards, so edits made in the container survive a restart
   // and an image upgrade.

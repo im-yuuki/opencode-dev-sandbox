@@ -1,7 +1,8 @@
 # OpenCode Dev Sandbox
 
-A full Linux dev box in one container, reachable from a browser. Coding agent, VS Code, an LXQt
-desktop, a file manager and an LLM proxy — plaintext HTTP or self-signed HTTPS, one login.
+A full Linux dev box in one container, reachable from a browser. Coding agent, persistent multi-tab
+web terminal, VS Code, an LXQt desktop, a file manager and an LLM proxy — plaintext HTTP or
+self-signed HTTPS, one login.
 
 <p align="center">
   <img src="https://cdn.simpleicons.org/debian/A81D33" height="34" alt="Debian" />
@@ -66,6 +67,9 @@ profile and state directories the apps use. A plain `su - user` works too, but a
   session. No per-tool passwords, no extra ports to publish.
 - **Launcher dashboard.** Start and stop apps from the browser. Every web UI opens in a new tab;
   there is no embedded/iframe view.
+- **Persistent web terminal.** Open multiple terminal tabs in one browser tab. Closing the browser
+  or losing the network detaches the WebSocket only; tmux keeps the shell and its processes running.
+  Reopen Terminal to reconnect by session ID; use **Kill** when a session should actually stop.
 - **Apps stay where you left them.** Enabled apps are remembered and restarted automatically
   after `docker restart`.
 - **Persistent workspace.** `/workspace` is a volume: code, settings, desktop session, secrets and
@@ -88,6 +92,7 @@ profile and state directories the apps use. A plain `su - user` works too, but a
 | # | App | What for |
 | --- | --- | --- |
 | <img src="https://cdn.simpleicons.org/opencode/000000/FFFFFF" height="20" /> | [OpenCode](https://opencode.ai) | Terminal-native coding agent |
+| <img src="https://cdn.simpleicons.org/gnubash/4EAA25" height="20" /> | Persistent web terminal | Multiple reconnectable tmux sessions in one browser tab |
 | <img src="https://cdn.simpleicons.org/github/181717/FFFFFF" height="20" /> | [OpenChamber](https://github.com/openchamber/openchamber) | Web UI for agent sessions |
 | <img src="https://cdn.simpleicons.org/coder/000000/FFFFFF" height="20" /> | [code-server](https://github.com/coder/code-server) | VS Code in the browser |
 | <img src="https://cdn.simpleicons.org/qt/41CD52" height="20" /> | [LXQt](https://lxqt-project.org) | Desktop (Openbox), PCManFM-Qt, QTerminal, FeatherPad, LXQt Configuration Center |
@@ -119,7 +124,7 @@ No C/C++ toolchain and no CMake ship in the image. Install them per project with
 | Archives | tar, gzip, bzip2, xz, zstd, zip, unzip, 7zip, rsync |
 | Process and system | procps, psmisc, util-linux, lsof, htop, btop, fastfetch |
 | Inspect and debug | strace, ltrace, time, binutils, xxd, binwalk |
-| Network | curl, wget, openssh-client, gnupg, iproute2, ping, dig, netcat, socat, traceroute, mtr, whois, iperf3, nmap, tcpdump, cloudflared |
+| Network | aria2, curl, wget, openssh-client, gnupg, iproute2, ping, dig, netcat, socat, traceroute, mtr, whois, iperf3, nmap, tcpdump, cloudflared |
 
 `fd` and `bat` keep Debian's renamed binaries; the managed shell setup aliases the short names.
 Some `tcpdump`, `nmap` and low-level networking operations still depend on Linux capabilities the

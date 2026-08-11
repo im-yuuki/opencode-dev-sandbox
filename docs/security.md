@@ -6,6 +6,9 @@ the boundary it defends is the container, not the processes inside it.
 - **One uid for everything.** Agent, desktop, code-server, FileBrowser and CLIProxyAPI all run as
   uid 1000. They are not isolated from each other: any one of them can read, modify or kill the
   others' files and processes.
+- **Web terminal sessions share that boundary.** The terminal broker runs as uid 1000 and starts
+  private tmux sessions. Session IDs are not a multi-user security boundary; processes already
+  running as uid 1000 can inspect or terminate them.
 - **Shared secrets on the volume.** `/workspace/.devbox` holds the CLIProxy management key,
   provider OAuth tokens, proxy API keys and the FileBrowser database. Directory modes are
   restrictive against *other* accounts, but everything running as uid 1000 can read them. The TLS
