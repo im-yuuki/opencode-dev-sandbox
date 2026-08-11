@@ -48,20 +48,24 @@ function ChartTooltip({
   payload?: Array<{
     dataKey: string;
     name: string;
-    value: number;
+    value: number | null;
     color?: string;
   }>;
   label?: number;
   formatValue: (v: number) => string;
   unit?: string;
 }) {
-  if (!active || !payload?.length || label == null) return null;
+  const values = payload?.filter(
+    (point): point is typeof point & { value: number } =>
+      typeof point.value === "number" && Number.isFinite(point.value),
+  );
+  if (!active || !values?.length || label == null) return null;
   return (
     <div className="rounded-lg border border-divider bg-background/95 px-2.5 py-1.5 text-xs text-foreground shadow-sm">
       <div className="mb-1 text-muted">
         <Clock value={label} />
       </div>
-      {payload.map((p) => (
+      {values.map((p) => (
         <div key={p.dataKey} className="flex items-center gap-1.5">
           <span
             aria-hidden
@@ -121,6 +125,7 @@ export function MetricsChart({
               stroke={s.color}
               strokeWidth={2}
               dot={false}
+              connectNulls={false}
               isAnimationActive={false}
             />
           ))}

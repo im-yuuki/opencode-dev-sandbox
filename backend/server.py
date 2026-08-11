@@ -360,6 +360,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self._authed_user():
                 return self._send({"error": "unauthorized"}, 401)
             return self._metrics_stream()
+        if path == "/api/v1/cliproxy-key":
+            # The launcher bootstrap page uses GET to retrieve the key after
+            # the DevBox session has authenticated. Keep this endpoint behind
+            # the same PAM-backed session gate as the rest of the control API.
+            if not self._authed_user():
+                return self._send({"error": "unauthorized"}, 401)
+            try:
+                with open(
+                    "/workspace/.devbox/cliproxy/management.key",
+                    encoding="ascii",
+                ) as f:
+                    return self._send({"key": f.read().strip()})
+            except OSError:
+                return self._send({"error": "no management key yet"}, 404)
         return self._plain("not found", 404)
 
     def do_POST(self):
@@ -420,23 +434,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 {"ok": True},
                 cookie=f"devbox_session=; {self._cookie_attrs()}; Max-Age=0",
             )
-
-        if path == "/api/v1/cliproxy-key":
-            # Lets the Management Center bootstrap page finish the panel login
-            # without asking for the key: the browser seeds localStorage from
-            # this (PAM-authenticated) endpoint and the panel auto-logs-in.
-            # Exposure is intentional -- inside the dev box everything runs as
-            # uid 1000 and the key lives on /workspace anyway.
-            if not self._authed_user():
-                return self._send({"error": "unauthorized"}, 401)
-            try:
-                with open(
-                    "/workspace/.devbox/cliproxy/management.key",
-                    encoding="ascii",
-                ) as f:
-                    return self._send({"key": f.read().strip()})
-            except OSError:
-                return self._send({"error": "no management key yet"}, 404)
 
         if path.startswith("/api/v1/services/"):
             if not self._authed_user():

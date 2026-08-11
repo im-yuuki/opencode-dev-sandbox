@@ -24,7 +24,6 @@
   },
   "permission": {
     "*": "allow",
-    "doom_loop": "allow",
     "external_directory": "allow",
   },
   "provider": {

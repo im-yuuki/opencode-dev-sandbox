@@ -49,25 +49,61 @@ interface TileProps {
   status: MetricsStatus;
 }
 
-/** Shows a shimmer placeholder until a series has at least two points — a lone
- *  sample cannot draw a line, so it reads as "still collecting" instead of an
- *  empty plot. */
+type ChartState = "ready" | "collecting" | "unavailable";
+
+function hasNumericValue(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function chartState(
+  data: Array<Record<string, number | null>>,
+  keys: string[],
+  available: boolean,
+): ChartState {
+  if (!available) return "unavailable";
+  const points = data.filter((point) =>
+    keys.some((key) => hasNumericValue(point[key])),
+  );
+  // A single sample has no trend. Keep the graph area stable and show a
+  // skeleton until a second usable point arrives, rather than drawing an
+  // empty Recharts frame or implying a historical value that does not exist.
+  return points.length >= 2 ? "ready" : "collecting";
+}
+
 function ChartArea({
-  ready,
+  data,
+  dataKeys,
+  available = true,
   height,
   children,
 }: {
-  ready: boolean;
+  data: Array<Record<string, number | null>>;
+  dataKeys: string[];
+  available?: boolean;
   height: number;
   children: ReactNode;
 }) {
-  if (!ready) {
+  const state = chartState(data, dataKeys, available);
+  if (state === "unavailable") {
     return (
-      <div style={{ height }} className="w-full">
+      <div
+        className="grid w-full place-items-center rounded-md border border-dashed border-divider text-xs text-muted"
+        style={{ height }}
+        role="status">
+        No data available
+      </div>
+    );
+  }
+  if (state === "collecting") {
+    return (
+      <div style={{ height }} className="relative w-full">
         <Skeleton
           className="h-full w-full rounded-md"
-          aria-label="collecting chart data"
+          aria-label="collecting historical chart data"
         />
+        <span className="absolute inset-0 grid place-items-center text-xs text-muted">
+          Collecting history…
+        </span>
       </div>
     );
   }
@@ -147,7 +183,7 @@ function CpuTile({ sample, history }: TileProps) {
             </Typography.Paragraph>
           )}
         </div>
-        <ChartArea ready={data.length >= 2} height={60}>
+        <ChartArea data={data} dataKeys={["cpu"]} available={sample?.cpuPercent != null} height={60}>
           <MetricsChart
             data={data}
             series={[
@@ -186,8 +222,7 @@ function GpuTile({ sample, history }: TileProps) {
       ? (memUsed / memTotal) * 100
       : null,
   );
-  const data = history
-    .map((s) => {
+  const data = history.map((s) => {
       const u = s.gpu?.utilizationPercent ?? null;
       const mu = s.gpu?.memoryUsedBytes ?? null;
       const mt = s.gpu?.memoryTotalBytes ?? null;
@@ -196,10 +231,7 @@ function GpuTile({ sample, history }: TileProps) {
         util: u,
         memory: mu != null && mt != null && mt > 0 ? (mu / mt) * 100 : null,
       };
-    })
-    .filter(
-      (d): d is { at: number; util: number; memory: number } => d.util != null,
-    );
+    });
   return (
     <Card className="h-full">
       <TileHeader icon={Gpu} title="GPU" right={<PctChip value={util} />} />
@@ -228,7 +260,11 @@ function GpuTile({ sample, history }: TileProps) {
             </ProgressBar.Track>
           </ProgressBar>
         ) : null}
-        <ChartArea ready={data.length >= 2} height={60}>
+        <ChartArea
+          data={data}
+          dataKeys={["util", "memory"]}
+          available={gpu != null}
+          height={60}>
           <MetricsChart
             data={data}
             series={[
@@ -268,6 +304,13 @@ function GpuTile({ sample, history }: TileProps) {
 
 function LoadTile({ sample, history }: TileProps) {
   const load = sample?.load;
+  // Load average is not a percentage by itself. Normalize the 1-minute load
+  // against the effective CPU capacity so the chip represents queued work
+  // relative to the cores available to this container.
+  const loadPct =
+    load != null && sample?.capacityCores != null && sample.capacityCores > 0
+      ? clampPercent((load.one / sample.capacityCores) * 100)
+      : null;
   const data = history.map((s) => ({
     at: s.at,
     one: s.load?.one ?? null,
@@ -276,17 +319,21 @@ function LoadTile({ sample, history }: TileProps) {
   }));
   return (
     <Card className="h-full">
-      <TileHeader icon={Gauge} title="Load" />
+      <TileHeader icon={Gauge} title="Load" right={<PctChip value={loadPct} />} />
       <Card.Content className="flex flex-col gap-3">
         <div>
-          <div className="text-2xl font-semibold tabular-nums">
-            {load ? load.one.toFixed(2) : "—"}
+          <div className="text-lg font-semibold tabular-nums">
+            {load ? `${load.one.toFixed(2)} ${load.five.toFixed(2)} ${load.fifteen.toFixed(2)}` : "—- -- --"}
           </div>
           <Typography.Paragraph className="text-xs text-muted">
-            1-minute load average
+            {load ? "load average" : "unavailable"}
           </Typography.Paragraph>
         </div>
-        <ChartArea ready={data.length >= 2} height={60}>
+        <ChartArea
+          data={data}
+          dataKeys={["one", "five", "fifteen"]}
+          available={load != null}
+          height={60}>
           <MetricsChart
             data={data}
             series={[
@@ -310,22 +357,6 @@ function LoadTile({ sample, history }: TileProps) {
             height={60}
           />
         </ChartArea>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {load ? (
-            <>
-              <Chip size="sm" variant="tertiary" className="text-muted">
-                5m {load.five.toFixed(2)}
-              </Chip>
-              <Chip size="sm" variant="tertiary" className="text-muted">
-                15m {load.fifteen.toFixed(2)}
-              </Chip>
-            </>
-          ) : (
-            <Typography.Paragraph className="text-xs text-muted">
-              unavailable
-            </Typography.Paragraph>
-          )}
-        </div>
       </Card.Content>
     </Card>
   );
@@ -371,7 +402,11 @@ function MemoryTile({ sample, history }: TileProps) {
             </ProgressBar.Track>
           </ProgressBar>
         ) : null}
-        <ChartArea ready={data.length >= 2} height={60}>
+        <ChartArea
+          data={data}
+          dataKeys={["memory"]}
+          available={mem != null}
+          height={60}>
           <MetricsChart
             data={data}
             series={[
@@ -464,7 +499,11 @@ function NetworkTile({ sample, history }: TileProps) {
             </Typography.Paragraph>
           </div>
         </div>
-        <ChartArea ready={data.length >= 2} height={60}>
+        <ChartArea
+          data={data}
+          dataKeys={["rx", "tx"]}
+          available={sample?.networkAvailable ?? false}
+          height={60}>
           <MetricsChart
             data={data}
             series={[
@@ -485,12 +524,20 @@ function NetworkTile({ sample, history }: TileProps) {
 function LoadingTiles() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 5 }, (_, i) => (
+      {Array.from({ length: 6 }, (_, i) => (
         <Card key={i} className="h-full">
+          <Card.Header className="flex items-center justify-between">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </Card.Header>
           <Card.Content className="flex flex-col gap-3">
-            <Skeleton className="h-4 w-24" />
             <Skeleton className="h-8 w-32" />
-            <Skeleton className="h-11 w-full" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-15 w-full rounded-md" />
+            <div className="flex gap-1.5">
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </div>
           </Card.Content>
         </Card>
       ))}

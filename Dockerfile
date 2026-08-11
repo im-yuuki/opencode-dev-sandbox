@@ -1,8 +1,11 @@
+# syntax=docker/dockerfile:1.7
+
 # ============ stage 1: independent frontend build container ============
 FROM node:lts-trixie-slim AS frontend-build
 WORKDIR /ui
 COPY web/package.json web/package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci --no-audit --no-fund
 COPY web/ .
 RUN npm run build
 
@@ -14,72 +17,88 @@ RUN sed -i "s|http://deb.debian.org/debian$|${APT_MIRROR}|" /etc/apt/sources.lis
 RUN ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
 
 # ============ bootstrap ============
-# One update feeds every layer below on purpose, so a re-run of apt-get update
-# is never repeated per category: the apt index and download cache are kept in
-# the image and every later install layer reuses them. Trade-off: the image is
-# a bit larger, the build is faster and the layer count stays low.
-RUN set -eux; apt-get update; apt-get install -y --no-install-recommends curl ca-certificates gnupg
+# APT indexes and downloaded archives live in BuildKit caches, not image layers.
+# Each transaction updates its own index so stale lists never become part of the
+# final image. The cache mounts are shared across rebuilds and architectures.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; apt-get update; apt-get install -y --no-install-recommends curl ca-certificates gnupg
 
 # ============ third-party repository keys ============
 # gnupg is not a build-only dependency here: it stays in the final image as one
 # of the shipped CLI tools, so dearmoring the keys in place costs nothing.
 # cloudflare-main.gpg is already dearmored upstream, so it is fetched as-is.
-RUN set -eux; curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg; curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg; curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /usr/share/keyrings/cloudflare-main.gpg
+RUN set -eux; \
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg; \
+    curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg; \
+    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /usr/share/keyrings/cloudflare-main.gpg
 
 # ============ repository lists ============
 # Node's major version is pinned to the current LTS at build time, resolved once
 # from setup_lts.x rather than maintaining a static major here.
-RUN set -eux; echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$(curl -fsSL https://deb.nodesource.com/setup_lts.x | sed -n 's/^NODE_VERSION="\([0-9][0-9]*\)\.x"$/\1/p').x nodistro main" > /etc/apt/sources.list.d/nodesource.list; echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list; echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" > /etc/apt/sources.list.d/cloudflared.list
-
-# ============ refresh index ============
-# Now that every repository list exists, one update makes all of them available
-# to every layer below. The index stays in the image, so it is fetched once.
-RUN apt-get update
+RUN set -eux; \
+    echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$(curl -fsSL https://deb.nodesource.com/setup_lts.x | sed -n 's/^NODE_VERSION="\([0-9][0-9]*\)\.x"$/\1/p').x nodistro main" > /etc/apt/sources.list.d/nodesource.list; \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list; \
+    echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" > /etc/apt/sources.list.d/cloudflared.list
 
 # ============ packages ============
-# One layer per category so a registry can pull them in parallel and so touching
-# one group does not invalidate the rest of the cache. No apt-get update and no
-# list cleanup here: the index from the bootstrap step is kept in the image, so
-# every layer installs straight from a fresh index without re-fetching it.
+# One layer per category keeps unrelated package changes cacheable. BuildKit
+# cache mounts make the repeated update/install transactions cheap without
+# retaining APT indexes in the image.
 #
 # No C/C++ toolchain and no CMake anywhere: those are installed per-project
 # through Nix (`nix shell nixpkgs#gcc nixpkgs#cmake`).
 
 # ---- language runtimes ----
-RUN set -eux; apt-get install -y --no-install-recommends nodejs python3 python3-pamela python3-pip python3-venv
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; apt-get update; apt-get install -y --no-install-recommends nodejs python3 python3-pamela python3-pip python3-venv
 
 # ---- service infrastructure ----
-RUN set -eux; apt-get install -y --no-install-recommends supervisor nginx openssl dbus dbus-x11 locales tzdata sudo git nix-bin
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; apt-get update; apt-get install -y --no-install-recommends supervisor nginx openssl dbus dbus-x11 locales tzdata sudo git nix-bin
 
 # ---- shell and filesystem tools ----
-RUN set -eux; apt-get install -y --no-install-recommends coreutils bash-completion less file tree findutils grep sed gawk diffutils patch procps psmisc util-linux lsof tar gzip bzip2 xz-utils zstd zip unzip 7zip rsync jq sqlite3 vim nano ripgrep fd-find fzf bat eza htop btop fastfetch strace ltrace time binutils xxd binwalk
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; apt-get update; apt-get install -y --no-install-recommends coreutils bash-completion less file tree findutils grep sed gawk diffutils patch procps psmisc util-linux lsof tar gzip bzip2 xz-utils zstd zip unzip 7zip rsync jq sqlite3 vim nano ripgrep fd-find fzf bat eza htop btop fastfetch strace ltrace time binutils xxd binwalk
 
 # ---- network tools ----
 # tcpdump, nmap and ping still depend on Linux capabilities the container
 # runtime grants; the image never asks for privileged mode on their behalf.
 # cloudflared comes from the Cloudflare apt repo added in the bootstrap step.
-RUN set -eux; apt-get install -y --no-install-recommends wget openssh-client iproute2 iputils-ping bind9-dnsutils netcat-openbsd socat traceroute mtr-tiny whois iperf3 nmap tcpdump cloudflared
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; apt-get update; apt-get install -y --no-install-recommends wget openssh-client iproute2 iputils-ping bind9-dnsutils netcat-openbsd socat traceroute mtr-tiny whois iperf3 nmap tcpdump cloudflared
 
 # ---- LXQt desktop ----
 # lxqt-core pulls session/panel/runner/notificationd/pcmanfm-qt/qterminal but no
 # window manager, so openbox is explicit. The full `lxqt` metapackage is skipped
 # on purpose -- it drags in an image viewer, archiver, mixer and translations.
-RUN set -eux; apt-get install -y --no-install-recommends lxqt-core lxqt-config lxqt-about openbox pcmanfm-qt qterminal featherpad papirus-icon-theme x11-xserver-utils xauth
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; apt-get update; apt-get install -y --no-install-recommends lxqt-core lxqt-config lxqt-about openbox pcmanfm-qt qterminal featherpad papirus-icon-theme x11-xserver-utils xauth
 
 # ---- VNC / noVNC ----
-RUN set -eux; apt-get install -y --no-install-recommends tigervnc-standalone-server novnc websockify
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; apt-get update; apt-get install -y --no-install-recommends tigervnc-standalone-server novnc websockify
 
 # ---- Chrome and fonts ----
 # Kept last and together: Chrome is the single largest package here and its
 # rendering depends on these fonts, so they share a layer and a cache lifetime.
-RUN set -eux; apt-get install -y --no-install-recommends google-chrome-stable fonts-liberation fonts-dejavu-core fonts-noto-core
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; apt-get update; apt-get install -y --no-install-recommends google-chrome-stable fonts-liberation fonts-dejavu-core fonts-noto-core
 
 # ============ Node global packages ============
 # OpenChamber ships @openchamber/web on npm, so it is installed from the
 # registry rather than by piping install.sh from the main branch through bash.
 # OpenCode's out-of-the-box config is seeded per-workspace by the entrypoint
 # from /etc/devbox/opencode.jsonc, not baked into a global path here.
-RUN set -eux; npm install -g --no-audit --no-fund opencode-ai @openchamber/web; npm cache clean --force; rm -rf /root/.npm /tmp/*
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    set -eux; npm install -g --no-audit --no-fund opencode-ai @openchamber/web; rm -rf /tmp/*
 
 # ============ code-server ============
 RUN set -eux; arch="$(dpkg --print-architecture)"; ver="$(curl -fsSL https://api.github.com/repos/coder/code-server/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"; test -n "$ver"; curl -fsSL -o /tmp/cs.tar.gz "https://github.com/coder/code-server/releases/download/v${ver}/code-server-${ver}-linux-${arch}.tar.gz"; mkdir -p /usr/local/lib/code-server; tar -xzf /tmp/cs.tar.gz -C /usr/local/lib/code-server --strip-components=1; rm -rf /tmp/cs.tar.gz

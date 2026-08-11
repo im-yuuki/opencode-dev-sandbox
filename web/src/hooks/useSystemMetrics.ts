@@ -39,6 +39,8 @@ export interface MetricsSample {
    */
   rxRate: number | null; // bytes / s
   txRate: number | null;
+  /** Whether the backend exposed at least one non-loopback interface. */
+  networkAvailable: boolean;
 }
 
 export type MetricsStatus = "loading" | "ready" | "stale" | "error";
@@ -128,7 +130,10 @@ export function useSystemMetrics() {
           hasSample = true;
           reconnectAttempt = 0;
         } catch {
-          setStatus(hasSample ? "stale" : "error");
+          // Keep the first render in its loading state while the stream is
+          // warming up. Showing an error card here makes a transient malformed
+          // event look like a permanent metrics failure.
+          setStatus(hasSample ? "stale" : "loading");
         }
       });
 
@@ -136,7 +141,7 @@ export function useSystemMetrics() {
         if (!alive || source !== connection) return;
         connection.close();
         source = null;
-        setStatus(hasSample ? "stale" : "error");
+        setStatus(hasSample ? "stale" : "loading");
         scheduleReconnect();
       };
     }
@@ -229,5 +234,6 @@ function deriveSample(
       : null,
     rxRate,
     txRate,
+    networkAvailable: cur.network != null,
   };
 }
