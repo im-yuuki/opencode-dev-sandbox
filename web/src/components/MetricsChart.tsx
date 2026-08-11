@@ -97,6 +97,13 @@ export function MetricsChart({
   unit,
   height = 96,
 }: MetricsChartProps) {
+  // Keep every sparkline on the same sliding one-minute time window. Using
+  // dataMin/dataMax makes the plot viewport expand from the first sample to
+  // the full window, which makes the line appear to stretch and then shrink
+  // as the history fills—especially noticeable for network rates.
+  const latestAt = data[data.length - 1]?.at ?? 0;
+  const xDomain: [number, number] = [latestAt - 60_000, latestAt];
+
   return (
     <div
       role="img"
@@ -108,7 +115,7 @@ export function MetricsChart({
           data={data}
           margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
           accessibilityLayer>
-          <XAxis dataKey="at" type="number" hide domain={["dataMin", "dataMax"]} />
+          <XAxis dataKey="at" type="number" hide domain={xDomain} />
           <YAxis hide domain={yDomain ?? ["auto", "auto"]} />
           <Tooltip
             cursor={{ stroke: "currentColor", strokeOpacity: 0.2 }}

@@ -223,6 +223,15 @@ function AppRow({
 
 export function Dashboard({ user }: { user: string }) {
   const { apps, loading, busyId, act, refresh } = useApps();
+  const build =
+    __DEVBOX_BUILD_INFO__.branch !== "unavailable" &&
+    __DEVBOX_BUILD_INFO__.commit !== "unavailable" &&
+    __DEVBOX_BUILD_INFO__.dirty != null
+      ? `${__DEVBOX_BUILD_INFO__.branch}/${__DEVBOX_BUILD_INFO__.commit}${
+          __DEVBOX_BUILD_INFO__.dirty ? "-dirty" : ""
+        }`
+      : "unknown";
+  const repository = __DEVBOX_BUILD_INFO__.repository;
 
   // Launch: start the service (the state persists across container restarts)
   // and refresh the row. Opening the app is left to the user's "Open in New
@@ -290,6 +299,31 @@ export function Dashboard({ user }: { user: string }) {
           )}
         </section>
       </main>
+      <footer className="border-t border-divider px-6 py-4">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          <span>build: {build}</span>
+          <span aria-hidden>·</span>
+          {repository === "unavailable" ? (
+            <span>GitHub unavailable</span>
+          ) : (
+            <a
+              href={repository}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline-offset-2 hover:underline">
+              GitHub
+            </a>
+          )}
+          <span aria-hidden>·</span>
+          <a
+            href="https://hub.docker.com/r/imyuuki/opencode-dev-sandbox"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline-offset-2 hover:underline">
+            Docker Hub
+          </a>
+        </div>
+      </footer>
     </div>
   );
 }

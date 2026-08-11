@@ -42,6 +42,19 @@ function formatBytes(n: number | null | undefined): string {
 const formatRate = (n: number | null | undefined) =>
   n == null ? "—" : `${formatBytes(n)}/s`;
 
+function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds)) return "—";
+  const total = Math.max(0, Math.floor(seconds));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${secs}s`;
+  return `${secs}s`;
+}
+
 
 interface TileProps {
   sample: MetricsSample | null;
@@ -163,9 +176,9 @@ function CpuTile({ sample, history }: TileProps) {
         ? String(capacityCores)
         : capacityCores.toFixed(1);
   return (
-    <Card className="h-full">
+    <Card className="flex h-full flex-col">
       <TileHeader icon={Cpu} title="CPU" right={<PctChip value={pct} />} />
-      <Card.Content className="flex flex-col gap-3">
+      <Card.Content className="flex flex-1 flex-col gap-3">
         <div>
           <div className="text-2xl font-semibold tabular-nums">
             {pct != null ? `${Math.round(pct)}%` : "—"}
@@ -195,7 +208,7 @@ function CpuTile({ sample, history }: TileProps) {
             height={60}
           />
         </ChartArea>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="mt-auto flex flex-wrap items-center gap-1.5">
           {hostCores != null ? (
             <Chip size="sm" variant="tertiary" className="text-muted">
               {hostCores} {hostCores === 1 ? "core" : "cores"}
@@ -233,9 +246,9 @@ function GpuTile({ sample, history }: TileProps) {
       };
     });
   return (
-    <Card className="h-full">
+    <Card className="flex h-full flex-col">
       <TileHeader icon={Gpu} title="GPU" right={<PctChip value={util} />} />
-      <Card.Content className="flex flex-col gap-3">
+      <Card.Content className="flex flex-1 flex-col gap-3">
         <div>
           <div className="text-2xl font-semibold tabular-nums">
             {util != null ? `${Math.round(util)}%` : "—"}
@@ -285,7 +298,7 @@ function GpuTile({ sample, history }: TileProps) {
             height={60}
           />
         </ChartArea>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="mt-auto flex flex-wrap items-center gap-1.5">
           {gpu && gpu.count > 1 ? (
             <Chip size="sm" variant="tertiary" className="text-muted">
               {gpu.count} GPUs
@@ -318,12 +331,12 @@ function LoadTile({ sample, history }: TileProps) {
     fifteen: s.load?.fifteen ?? null,
   }));
   return (
-    <Card className="h-full">
+    <Card className="flex h-full flex-col">
       <TileHeader icon={Gauge} title="Load" right={<PctChip value={loadPct} />} />
-      <Card.Content className="flex flex-col gap-3">
+      <Card.Content className="flex flex-1 flex-col gap-3">
         <div>
           <div className="text-lg font-semibold tabular-nums">
-            {load ? `${load.one.toFixed(2)} ${load.five.toFixed(2)} ${load.fifteen.toFixed(2)}` : "—- -- --"}
+            {load ? `${load.one.toFixed(2)}   ${load.five.toFixed(2)}   ${load.fifteen.toFixed(2)}` : "—- -- --"}
           </div>
           <Typography.Paragraph className="text-xs text-muted">
             {load ? "load average" : "unavailable"}
@@ -357,6 +370,9 @@ function LoadTile({ sample, history }: TileProps) {
             height={60}
           />
         </ChartArea>
+        <Chip size="sm" variant="tertiary" className="mt-auto self-start text-muted">
+          uptime {formatDuration(sample?.uptimeSeconds)}
+        </Chip>
       </Card.Content>
     </Card>
   );
@@ -380,13 +396,13 @@ function MemoryTile({ sample, history }: TileProps) {
     })
     .filter((d): d is { at: number; memory: number } => d.memory != null);
   return (
-    <Card className="h-full">
+    <Card className="flex h-full flex-col">
       <TileHeader
         icon={MemoryStick}
         title="Memory"
         right={<PctChip value={pct} />}
       />
-      <Card.Content className="flex flex-col gap-3">
+      <Card.Content className="flex flex-1 flex-col gap-3">
         <div>
           <div className="text-2xl font-semibold tabular-nums">
             {formatBytes(used)}
@@ -402,26 +418,28 @@ function MemoryTile({ sample, history }: TileProps) {
             </ProgressBar.Track>
           </ProgressBar>
         ) : null}
-        <ChartArea
-          data={data}
-          dataKeys={["memory"]}
-          available={mem != null}
-          height={60}>
-          <MetricsChart
+        <div className="mt-auto">
+          <ChartArea
             data={data}
-            series={[
-              {
-                dataKey: "memory",
-                name: "Memory",
-                color: CHART_COLORS.primary,
-              },
-            ]}
-            label="Memory usage, last minute"
-            yDomain={[0, 100]}
-            unit="%"
-            height={60}
-          />
-        </ChartArea>
+            dataKeys={["memory"]}
+            available={mem != null}
+            height={60}>
+            <MetricsChart
+              data={data}
+              series={[
+                {
+                  dataKey: "memory",
+                  name: "Memory",
+                  color: CHART_COLORS.primary,
+                },
+              ]}
+              label="Memory usage, last minute"
+              yDomain={[0, 100]}
+              unit="%"
+              height={60}
+            />
+          </ChartArea>
+        </div>
       </Card.Content>
     </Card>
   );
@@ -435,13 +453,13 @@ function DiskTile({ sample }: TileProps) {
     used != null && total != null && total > 0 ? (used / total) * 100 : null,
   );
   return (
-    <Card className="h-full">
+    <Card className="flex h-full flex-col">
       <TileHeader
         icon={HardDrive}
         title="Storage"
         right={<PctChip value={pct} />}
       />
-      <Card.Content className="flex flex-col gap-3">
+      <Card.Content className="flex flex-1 flex-col gap-3">
         <div>
           <div className="text-2xl font-semibold tabular-nums">
             {formatBytes(used)}
@@ -461,9 +479,9 @@ function DiskTile({ sample }: TileProps) {
             unavailable
           </Typography.Paragraph>
         )}
-        <Typography.Paragraph className="text-xs text-muted">
+        <Chip size="sm" variant="tertiary" className="mt-auto self-start text-muted">
           {disk ? disk.path : "unavailable"}
-        </Typography.Paragraph>
+        </Chip>
       </Card.Content>
     </Card>
   );
@@ -472,15 +490,19 @@ function DiskTile({ sample }: TileProps) {
 function NetworkTile({ sample, history }: TileProps) {
   const rx = sample?.rxRate ?? null;
   const tx = sample?.txRate ?? null;
+  const totalTraffic =
+    sample?.rxBytes != null && sample.txBytes != null
+      ? sample.rxBytes + sample.txBytes
+      : null;
   const data = history.map((s) => ({
     at: s.at,
     rx: s.rxRate,
     tx: s.txRate,
   }));
   return (
-    <Card className="h-full">
+    <Card className="flex h-full flex-col">
       <TileHeader icon={Network} title="Network" />
-      <Card.Content className="flex flex-col gap-3">
+      <Card.Content className="flex flex-1 flex-col gap-3">
         <div className="grid grid-cols-2 gap-2">
           <div>
             <div className="text-lg font-semibold tabular-nums">
@@ -516,6 +538,9 @@ function NetworkTile({ sample, history }: TileProps) {
             height={60}
           />
         </ChartArea>
+        <Chip size="sm" variant="tertiary" className="mt-auto self-start text-muted">
+          total {formatBytes(totalTraffic)}
+        </Chip>
       </Card.Content>
     </Card>
   );
@@ -589,7 +614,7 @@ export function SystemMetrics() {
           ) : null}
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <CpuTile {...tilesProps} />
         {sample.gpu ? <GpuTile {...tilesProps} /> : null}
         <LoadTile {...tilesProps} />

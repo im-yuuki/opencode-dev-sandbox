@@ -241,7 +241,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _metrics_stream(self):
-        """Stream a metrics snapshot every three seconds as SSE.
+        """Stream a metrics snapshot every second as SSE.
 
         The response is close-delimited for the stdlib HTTP server; nginx
         turns it into a normal streamed downstream response. Authentication is
@@ -268,7 +268,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 event = f"event: metrics\ndata: {payload}\n\n".encode()
                 self.wfile.write(event)
                 self.wfile.flush()
-                time.sleep(3)
+                time.sleep(1)
         except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
             # Normal disconnect/reconnect path: the browser closed the socket.
             pass

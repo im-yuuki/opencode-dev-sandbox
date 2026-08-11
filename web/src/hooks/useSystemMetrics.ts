@@ -4,6 +4,8 @@ import type { SystemMetricsResponse } from "../api";
 export interface MetricsSample {
   /** Client timestamp (ms) used as the sliding-window X axis. */
   at: number;
+  /** Seconds since the container's PID 1 started. */
+  uptimeSeconds: number | null;
   cpuPercent: number | null;
   /** Human-readable CPU model name (static per boot). */
   cpuModel: string | null;
@@ -39,6 +41,9 @@ export interface MetricsSample {
    */
   rxRate: number | null; // bytes / s
   txRate: number | null;
+  /** Cumulative non-loopback traffic observed by the container. */
+  rxBytes: number | null;
+  txBytes: number | null;
   /** Whether the backend exposed at least one non-loopback interface. */
   networkAvailable: boolean;
 }
@@ -57,7 +62,7 @@ interface PrevCounters {
 }
 
 /**
- * Receives a metrics snapshot every 3s over SSE, derives CPU % and network
+ * Receives a metrics snapshot every second over SSE, derives CPU % and network
  * rates from cumulative deltas, and keeps a one-minute sliding window.
  *
  * - Disconnects use bounded exponential backoff and reconnect automatically.
@@ -196,6 +201,7 @@ function deriveSample(
 
   return {
     at,
+    uptimeSeconds: cur.uptimeSeconds ?? null,
     cpuPercent: cpuPct,
     cpuModel: cur.cpu?.model ?? null,
     hostCores: cur.cpu?.hostCores ?? null,
@@ -234,6 +240,8 @@ function deriveSample(
       : null,
     rxRate,
     txRate,
+    rxBytes: net?.rxBytes ?? null,
+    txBytes: net?.txBytes ?? null,
     networkAvailable: cur.network != null,
   };
 }
