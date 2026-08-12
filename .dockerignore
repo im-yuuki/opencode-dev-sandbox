@@ -14,3 +14,8 @@ __pycache__
 **/__pycache__
 *.pyc
 *.pyo
+
+# The image-seeded OpenCode skill is Markdown but must remain in the build context.
+!etc/devbox/opencode-skills/
+!etc/devbox/opencode-skills/opencode-dev-sandbox/
+!etc/devbox/opencode-skills/opencode-dev-sandbox/SKILL.md

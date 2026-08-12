@@ -101,8 +101,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # ============ Node global packages ============
 # OpenChamber ships @openchamber/web on npm, so it is installed from the
 # registry rather than by piping install.sh from the main branch through bash.
-# OpenCode's out-of-the-box config is seeded per-workspace by the entrypoint
-# from /etc/devbox/opencode.jsonc, not baked into a global path here.
+# OpenCode's out-of-the-box config and the DevBox skill are seeded per-workspace
+# by the entrypoint from /etc/devbox/, not baked into a global path here.
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     set -eux; npm install -g --no-audit --no-fund opencode-ai @openchamber/web; rm -rf /tmp/*
 
@@ -140,6 +140,9 @@ RUN set -eux; mkdir -p /nix /nix/var/nix/user-state /nix/var/nix/user-cache; cho
 COPY --from=frontend-build /ui/dist /var/www/launcher
 COPY backend/ /opt/devbox/backend/
 COPY etc/ /etc/
+# .dockerignore excludes documentation Markdown; keep the image-seeded skill
+# explicit so it is present even though the surrounding configs are copied in bulk.
+COPY etc/devbox/opencode-skills/opencode-dev-sandbox/SKILL.md /etc/devbox/opencode-skills/opencode-dev-sandbox/SKILL.md
 COPY etc/novnc/defaults.json /usr/share/novnc/defaults.json
 COPY etc/novnc/mandatory.json /usr/share/novnc/mandatory.json
 # Existing remote origins may have cached Debian's stock empty mandatory.json.

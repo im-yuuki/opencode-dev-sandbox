@@ -134,13 +134,10 @@ container runtime grants — the image never asks for privileged mode.
 
 ## Screenshots
 
-| Dashboard | Agent |
-| --- | --- |
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Agent](docs/screenshots/agent.png) |
+The launcher dashboard combines live system metrics, application controls, and build links in the
+footer.
 
-| Code | Files |
-| --- | --- |
-| ![Code](docs/screenshots/code.png) | ![Files](docs/screenshots/files.png) |
+![Launcher dashboard with live system metrics, application controls, and footer](docs/screenshots/launcher-dashboard-metrics.png)
 
 ---
 

@@ -54,6 +54,12 @@ su -s /bin/bash "$WEB_USER" -c '
     cp /etc/devbox/opencode.jsonc "$oc_dir/opencode.jsonc"
     echo "devbox: seeded OpenCode config"
   fi
+  oc_skill_dir="$oc_dir/skills/opencode-dev-sandbox"
+  if [ ! -f "$oc_skill_dir/SKILL.md" ]; then
+    mkdir -p "$oc_skill_dir"
+    cp /etc/devbox/opencode-skills/opencode-dev-sandbox/SKILL.md "$oc_skill_dir/SKILL.md"
+    echo "devbox: seeded OpenCode DevBox skill"
+  fi
 '
 
 # ---- 5. seed /workspace skeleton (survives empty volume mount) ----
