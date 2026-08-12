@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""System metrics collection for the DevBox dashboard.
+"""System metrics collection for the opencode-dev-sanbox dashboard.
 
 Reports cumulative counters, instantaneous values and container *capacities*;
 CPU usage and network rates are derived client-side from deltas, so concurrent
@@ -188,6 +188,22 @@ def _load_metrics() -> dict | None:
     return {"one": one, "five": five, "fifteen": fifteen}
 
 
+def _container_uptime_seconds() -> float | None:
+    """Return elapsed time since the container's PID 1 started."""
+    raw = _read("/proc/1/stat")
+    if not raw:
+        return None
+    _, separator, rest = raw.rpartition(") ")
+    if not separator:
+        return None
+    fields = rest.split()
+    # `rest` starts at field 3 (state); field 22 is therefore index 19.
+    start_ticks = _int(fields[19]) if len(fields) > 19 else None
+    if start_ticks is None or _HZ <= 0:
+        return None
+    return max(0.0, time.monotonic() - start_ticks / _HZ)
+
+
 def _memory_metrics() -> dict | None:
     info = _meminfo_kb()
     flavor = _cgroup_flavor()
@@ -349,6 +365,7 @@ def collect_metrics() -> dict:
     memory = _memory_metrics()
     return {
         "monotonic": time.monotonic(),
+        "uptimeSeconds": _container_uptime_seconds(),
         "cpu": {
             "usageNs": _usage_nanos(flavor),
             "capacityCores": _capacity_cores(flavor),

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Opening CLI Proxy…</title>
+    <meta name="robots" content="noindex" />
+    <style>
+      body { font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #0f1115; color: #e4e4e7; }
+    </style>
+  </head>
+  <body>
+    <p id="status">Signing you into the CLI Proxy Management Center…</p>
+    <script>
+      // Single-login bootstrap for the Management Center.
+      //
+      // The panel is a separate SPA that keeps its own "logged-in" state in
+      // localStorage and asks for the management key on first visit. Instead of
+      // making the user type that key after already logging in to the opencode-dev-sanbox,
+      // this page pulls the key from the (PAM-authenticated) control API and
+      // seeds the panel's storage, then hands over to /management.html where the
+      // panel's own restoreSession() auto-login takes over.
+      //
+      // The panel accepts the plaintext legacy storage format: a raw
+      // `managementKey` string, an optional `apiBase`, and an `isLoggedIn` flag.
+      (function () {
+        var KEY_URL = "/launcher/api/v1/cliproxy-key";
+        var TARGET = "/management.html";
+
+        var status = document.getElementById("status");
+
+        function fail(message) {
+          status.textContent = message;
+          var retry = document.createElement("button");
+          retry.textContent = "Retry";
+          retry.style = "display:block;margin:1rem auto;padding:.5rem 1rem";
+          retry.onclick = function () { window.location.reload(); };
+          document.body.appendChild(retry);
+        }
+
+        fetch(KEY_URL, { credentials: "include", cache: "no-store" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("status " + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            if (!data || !data.key) throw new Error("empty key");
+            var key = data.key.trim();
+            if (!key) throw new Error("empty key");
+
+            // Check the exact public management route before handing off to
+            // the panel. This distinguishes a bad key/stopped proxy from a
+            // localStorage problem, instead of silently bouncing to the
+            // launcher and making the SSO flow appear to do nothing.
+            return fetch("/v0/management/config", {
+              credentials: "include",
+              cache: "no-store",
+              headers: { Authorization: "Bearer " + key },
+            }).then(function (r) {
+              if (!r.ok) throw new Error("management API status " + r.status);
+              return key;
+            });
+          })
+          .then(function (key) {
+            try {
+              localStorage.setItem("isLoggedIn", "true");
+              // The current panel reads the obfuscated form after migrating
+              // these legacy plaintext keys. Keep apiUrl as well for older
+              // panel builds that prefer that name.
+              localStorage.setItem("managementKey", key);
+              localStorage.setItem("apiBase", window.location.origin);
+              localStorage.setItem("apiUrl", window.location.origin);
+            } catch (e) {
+              throw new Error("localStorage unavailable");
+            }
+            window.location.replace(TARGET);
+          })
+          .catch(function (error) {
+            console.error("devbox: CLIProxy auto-login failed", error);
+            fail("CLI Proxy login failed: " + (error.message || "unknown error"));
+          });
+      })();
+    </script>
+  </body>
+</html>

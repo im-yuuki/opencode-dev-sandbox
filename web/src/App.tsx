@@ -1,11 +1,28 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useState, useEffect, type ReactNode } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router";
 import { Spinner } from "@heroui/react";
 import { api, type BootInfo } from "./api";
-import { LoginPage } from "./pages/Login";
-import { Dashboard } from "./pages/Dashboard";
-import { Embed } from "./pages/Embed";
-import { ErrorPage } from "./pages/Error";
+
+const LoginPage = lazy(() =>
+  import("./pages/Login").then(({ LoginPage }) => ({ default: LoginPage })),
+);
+const Dashboard = lazy(() =>
+  import("./pages/Dashboard").then(({ Dashboard }) => ({ default: Dashboard })),
+);
+const ErrorPage = lazy(() =>
+  import("./pages/Error").then(({ ErrorPage }) => ({ default: ErrorPage })),
+);
+const TerminalPage = lazy(() =>
+  import("./pages/Terminal").then(({ TerminalPage }) => ({ default: TerminalPage })),
+);
+
+function PageFallback() {
+  return (
+    <div className="grid h-screen place-items-center gap-3">
+      <Spinner size="lg" />
+    </div>
+  );
+}
 
 type Gate =
   | { loading: true }
@@ -53,7 +70,11 @@ export function App() {
   // nginx sends users here precisely when something upstream is broken, and the
   // gate's own boot call is often the thing that failed.
   if (onErrorRoute) {
-    return <ErrorPage />;
+    return (
+      <Suspense fallback={<PageFallback />}>
+        <ErrorPage />
+      </Suspense>
+    );
   }
   if (gate.loading) {
     return (
@@ -67,7 +88,8 @@ export function App() {
   }
 
   return (
-    <Routes>
+    <Suspense fallback={<PageFallback />}>
+      <Routes>
       {/* First visit has no password yet: /login renders the setup form
           inline instead of bouncing to a separate page. An already-signed-in
           visitor has nothing to do here and goes to the dashboard, same as a
@@ -93,10 +115,10 @@ export function App() {
         }
       />
       <Route
-        path="/embed/:tool"
+        path="/terminal"
         element={
           <RequireAuth gate={gate}>
-            <Embed />
+            <TerminalPage />
           </RequireAuth>
         }
       />
@@ -104,6 +126,7 @@ export function App() {
       <Route path="/error" element={<ErrorPage />} />
       {/* an unknown SPA path is a genuine 404, not a silent bounce home */}
       <Route path="*" element={<ErrorPage code={404} />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }

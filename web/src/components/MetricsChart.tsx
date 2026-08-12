@@ -48,20 +48,24 @@ function ChartTooltip({
   payload?: Array<{
     dataKey: string;
     name: string;
-    value: number;
+    value: number | null;
     color?: string;
   }>;
   label?: number;
   formatValue: (v: number) => string;
   unit?: string;
 }) {
-  if (!active || !payload?.length || label == null) return null;
+  const values = payload?.filter(
+    (point): point is typeof point & { value: number } =>
+      typeof point.value === "number" && Number.isFinite(point.value),
+  );
+  if (!active || !values?.length || label == null) return null;
   return (
     <div className="rounded-lg border border-divider bg-background/95 px-2.5 py-1.5 text-xs text-foreground shadow-sm">
       <div className="mb-1 text-muted">
         <Clock value={label} />
       </div>
-      {payload.map((p) => (
+      {values.map((p) => (
         <div key={p.dataKey} className="flex items-center gap-1.5">
           <span
             aria-hidden
@@ -93,6 +97,13 @@ export function MetricsChart({
   unit,
   height = 96,
 }: MetricsChartProps) {
+  // Keep every sparkline on the same sliding one-minute time window. Using
+  // dataMin/dataMax makes the plot viewport expand from the first sample to
+  // the full window, which makes the line appear to stretch and then shrink
+  // as the history fills—especially noticeable for network rates.
+  const latestAt = data[data.length - 1]?.at ?? 0;
+  const xDomain: [number, number] = [latestAt - 60_000, latestAt];
+
   return (
     <div
       role="img"
@@ -104,7 +115,7 @@ export function MetricsChart({
           data={data}
           margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
           accessibilityLayer>
-          <XAxis dataKey="at" type="number" hide domain={["dataMin", "dataMax"]} />
+          <XAxis dataKey="at" type="number" hide domain={xDomain} />
           <YAxis hide domain={yDomain ?? ["auto", "auto"]} />
           <Tooltip
             cursor={{ stroke: "currentColor", strokeOpacity: 0.2 }}
@@ -121,6 +132,7 @@ export function MetricsChart({
               stroke={s.color}
               strokeWidth={2}
               dot={false}
+              connectNulls={false}
               isAnimationActive={false}
             />
           ))}

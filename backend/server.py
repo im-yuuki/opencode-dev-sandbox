@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DevBox control plane.
+"""opencode-dev-sanbox control plane.
 
 Single-process ThreadingHTTPServer bound to 127.0.0.1, used by nginx as:
   * a PAM authentication + session backend (replaces HTTP basic auth)
@@ -42,18 +42,26 @@ STATE_FILE = os.path.join(STATE_DIR, "apps.json")
 # Applications shown on the dashboard. id -> (display name, [supervisor
 # programs]). nginx (gateway) and dbus stay supervised but are never listed:
 # the gateway cannot be toggled (stopping it locks everyone out) and dbus is
-# session infrastructure. "agent" is the core app: always autostarted, never
-# offered Launch/Stop controls.
+# session infrastructure. "agent" is a normal toggle-able app like the rest; on
+# first boot everything sits stopped until launched from the dashboard.
 # Desktop = one feature: Xvnc + LXQt (vnc) toggled together with its
 # noVNC bridge (websockify) so the pair stays consistent.
+# The "files" id predates the switch from Cloud Commander to FileBrowser
+# Quantum and is kept verbatim so an existing apps.json still restores the
+# user's enabled set; only the supervisor program behind it changed.
 APPS = {
     "agent": ("Agent", [("openchamber", "OpenCode UI + terminal")]),
-    "files": ("Files", [("cloudcmd", "Cloud Commander file manager")]),
+    "files": ("Files", [("filebrowser", "FileBrowser Quantum file manager")]),
     "desktop": (
         "Desktop",
         [("vnc", "Xvnc + LXQt"), ("websockify", "noVNC bridge")],
     ),
     "code": ("Code", [("code-server", "VS Code web")]),
+    "cliproxy": (
+        "CLI Proxy",
+        [("cliproxyapi", "CLIProxyAPI + Management Center")],
+    ),
+    "terminal": ("Terminal", [("web-terminal", "Persistent tmux web terminal")]),
 }
 ACTIONS = {"start", "stop", "restart"}
 
@@ -234,7 +242,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _metrics_stream(self):
-        """Stream a metrics snapshot every three seconds as SSE.
+        """Stream a metrics snapshot every second as SSE.
 
         The response is close-delimited for the stdlib HTTP server; nginx
         turns it into a normal streamed downstream response. Authentication is
@@ -261,7 +269,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 event = f"event: metrics\ndata: {payload}\n\n".encode()
                 self.wfile.write(event)
                 self.wfile.flush()
-                time.sleep(3)
+                time.sleep(1)
         except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
             # Normal disconnect/reconnect path: the browser closed the socket.
             pass
@@ -353,6 +361,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self._authed_user():
                 return self._send({"error": "unauthorized"}, 401)
             return self._metrics_stream()
+        if path == "/api/v1/cliproxy-key":
+            # The launcher bootstrap page uses GET to retrieve the key after
+            # the opencode-dev-sanbox session has authenticated. Keep this endpoint behind
+            # the same PAM-backed session gate as the rest of the control API.
+            if not self._authed_user():
+                return self._send({"error": "unauthorized"}, 401)
+            try:
+                with open(
+                    "/workspace/.devbox/cliproxy/management.key",
+                    encoding="ascii",
+                ) as f:
+                    return self._send({"key": f.read().strip()})
+            except OSError:
+                return self._send({"error": "no management key yet"}, 404)
         return self._plain("not found", 404)
 
     def do_POST(self):
@@ -450,7 +472,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main():
     # Bring back applications that were enabled before the container restarted.
-    # Agent and infrastructure (nginx, dbus) autostart via supervisord instead.
+    # Everything is autostart=false under supervisord; nginx and dbus come back
+    # via their own units (nginx is on by default as the gateway).
     restore_enabled()
     server = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"devbox api listening on {HOST}:{PORT} for user '{USER}'", flush=True)

@@ -1,0 +1,108 @@
+{
+  // Seed config for OpenCode inside the opencode-dev-sanbox, copied once to
+  // ~/.config/opencode/opencode.jsonc on first start. The entrypoint never
+  // rewrites it afterwards, so edits made in the container survive a restart
+  // and an image upgrade.
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-background-agents@latest", "opencode-pty@latest"],
+  "mcp": {
+    "context7": {
+      "type": "local",
+      "command": ["npx", "-y", "@upstash/context7-mcp@latest"],
+      "enabled": true,
+    },
+    "chrome-devtools": {
+      "type": "local",
+      "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
+      "enabled": true,
+    },
+  },
+  "lsp": true,
+  "tools": {
+    "websearch": true,
+    "codesearch": true,
+  },
+  "permission": {
+    "*": "allow",
+    "external_directory": "allow",
+  },
+  "provider": {
+    "local-cpa": {
+      "name": "Local CLIProxyAPI",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://127.0.0.1:8317/v1",
+      },
+      "models": {
+        "default": {
+          "name": "default",
+          "attachment": true,
+          "reasoning": true,
+          "temperature": true,
+          "tool_call": true,
+          "limit": {
+            "context": 256000,
+            "output": 128000,
+          },
+          "variants": {
+            "high": {
+              "reasoningEffort": "high",
+              "textVerbosity": "low",
+              "reasoningSummary": "auto",
+            },
+            "low": {
+              "reasoningEffort": "low",
+              "textVerbosity": "low",
+              "reasoningSummary": "auto",
+            },
+          },
+          "modalities": {
+            "input": ["text"],
+            "output": ["text"],
+          },
+        },
+        "test": {
+          "name": "test",
+          "attachment": true,
+          "reasoning": true,
+          "temperature": true,
+          "tool_call": true,
+          "limit": {
+            "context": 512000,
+            "output": 128000,
+          },
+          "variants": {
+            "high": {
+              "reasoningEffort": "high",
+              "textVerbosity": "low",
+              "reasoningSummary": "auto",
+            },
+            "low": {
+              "reasoningEffort": "low",
+              "textVerbosity": "low",
+              "reasoningSummary": "auto",
+            },
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
+        },
+      },
+    },
+    "local-cpa-openai": {
+      "name": "Local CLIProxyAPI - OpenAI",
+      "npm": "@ai-sdk/openai",
+      "options": {
+        "baseURL": "http://127.0.0.1:8317/v1",
+      },
+    },
+    "local-cpa-anthropic": {
+      "name": "Local CLIProxyAPI - Anthropic",
+      "npm": "@ai-sdk/anthropic",
+      "options": {
+        "baseURL": "http://127.0.0.1:8317/v1",
+      },
+    },
+  },
+}

@@ -1,0 +1,26 @@
+#!/bin/sh
+# Wrapper that gives a user-facing service the single-user Nix environment
+# before exec'ing it. Used by the supervisor programs that run as uid 1000
+# (openchamber, code-server, vnc, websockify, filebrowser, cliproxyapi).
+#
+# HOME is /workspace, which is the persistent volume, but /nix is *not*: it
+# lives in the container writable layer. Leaving Nix state under HOME would
+# therefore leave ~/.nix-profile dangling at store paths that no longer exist
+# after the container is recreated. Pinning state and cache inside /nix keeps
+# the profile and the store consistent -- both survive `docker restart` and
+# both disappear together on `docker rm`.
+#
+# Root services (nginx, devbox-api, dbus, supervisord) must never source this:
+# the Nix profile is user-writable, so putting it on root's PATH would let a
+# uid-1000 process substitute the binaries that root executes.
+set -eu
+
+export NIX_STATE_HOME=/nix/var/nix/user-state
+export NIX_CACHE_HOME=/nix/var/nix/user-cache
+
+# Nix profile first so `nix profile install` shadows the Debian package, then
+# the system directories. No sbin: these services never need root utilities.
+PATH=/nix/var/nix/user-state/profiles/profile/bin:/usr/local/bin:/usr/bin:/bin
+export PATH
+
+exec "$@"

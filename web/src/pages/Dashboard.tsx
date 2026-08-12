@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router";
 import { motion } from "framer-motion";
 import {
   Avatar,
@@ -7,22 +6,22 @@ import {
   Card,
   Chip,
   Header,
-  Link as HeroLink,
+  Link,
   Separator,
   Spinner,
   Typography,
   buttonVariants,
 } from "@heroui/react";
 import {
-  ArrowUpRight,
-  Frame,
+  ExternalLink,
   LogOut,
   RefreshCw,
-  Rocket,
   Box,
   Circle,
   type LucideIcon,
   User,
+  Play,
+  Square,
 } from "lucide-react";
 import { api, type AppInfo } from "../api";
 import { SystemMetrics } from "../components/SystemMetrics";
@@ -93,10 +92,7 @@ function AppRow({
   const running = appRunning(app);
   const someOn = app.members.some((m) => m.running);
   const Icon: LucideIcon = meta?.icon ?? Box;
-  const isAgent = app.id === "agent";
-  // Agent is always on, so its link is live even though the row never reports
-  // the Stop/running state the other apps do.
-  const canOpen = Boolean(meta?.url) && (running || isAgent);
+  const canOpen = Boolean(meta?.url) && running;
 
   return (
     // Mount-only fade/slide. No `layout`: rows never reorder and their height is
@@ -144,7 +140,8 @@ function AppRow({
               size="sm"
               variant="tertiary"
               aria-label={`${m.unit}: ${m.running ? "running" : "stopped"}`}
-              color={m.running ? "success" : "default"}>
+              color={m.running ? "success" : "default"}
+              className="gap-1">
               <Circle aria-hidden size={7} fill="currentColor" />
               <Typography.Code className="truncate text-xs text-muted">
                 {m.unit}
@@ -154,36 +151,20 @@ function AppRow({
         </Card.Content>
 
         <Card.Footer className="shrink-0 gap-2">
-          {/* Agent has no start/stop controls: it is the always-on core, so
-              starting it is a no-op and stopping it would take the launcher
-              down with it. */}
-          {isAgent ? null : running ? (
-            <>
-              <Button
-                size="sm"
-                variant="danger"
-                isDisabled={busy}
-                isPending={busy}
-                onPress={() => onAction("stop")}>
-                {({ isPending }) => (
-                  <>
-                    {isPending ? <Spinner color="current" size="sm" /> : null}
-                    Stop
-                  </>
-                )}
-              </Button>
-              {meta?.embed ? (
-                <Link
-                  to={`/embed/${meta.id}`}
-                  className={buttonVariants({
-                    variant: "secondary",
-                    size: "sm",
-                  })}>
-                  <Frame size={14} />
-                  Open
-                </Link>
-              ) : null}
-            </>
+          {running ? (
+            <Button
+              size="sm"
+              variant="danger"
+              isDisabled={busy}
+              isPending={busy}
+              onPress={() => onAction("stop")}>
+              {({ isPending }) => (
+                <>
+                  {isPending ? <Spinner color="current" size="sm" /> : <Square size={14} />}
+                  Stop
+                </>
+              )}
+            </Button>
           ) : (
             <Button
               size="sm"
@@ -193,8 +174,7 @@ function AppRow({
               onPress={onLaunch}>
               {({ isPending }) => (
                 <>
-                  {isPending ? <Spinner color="current" size="sm" /> : null}
-                  <Rocket size={14} />
+                  {isPending ? <Spinner color="current" size="sm" /> : <Play size={14} />}
                   Launch
                 </>
               )}
@@ -207,7 +187,16 @@ function AppRow({
               target="_blank"
               rel="noopener"
               aria-disabled={!canOpen}
-              title={canOpen ? "Open in New Tab" : "Please start the app first"}
+              aria-label={
+                canOpen
+                  ? `open ${meta.name} in a new tab`
+                  : `${meta.name} is stopped: start it before opening`
+              }
+              title={
+                canOpen
+                  ? `Open ${meta.name} in New Tab`
+                  : "Please start the app first"
+              }
               className={buttonVariants({
                 variant: "outline",
                 size: "sm",
@@ -215,7 +204,7 @@ function AppRow({
                   ? undefined
                   : "pointer-events-none opacity-50",
               })}>
-              <ArrowUpRight size={14} />
+              <ExternalLink aria-hidden size={14} />
             </a>
           ) : null}
           <Button
@@ -234,32 +223,32 @@ function AppRow({
 
 export function Dashboard({ user }: { user: string }) {
   const { apps, loading, busyId, act, refresh } = useApps();
+  const build =
+    __DEVBOX_BUILD_INFO__.branch !== "unavailable" &&
+    __DEVBOX_BUILD_INFO__.commit !== "unavailable" &&
+    __DEVBOX_BUILD_INFO__.dirty != null
+      ? `${__DEVBOX_BUILD_INFO__.branch}/${__DEVBOX_BUILD_INFO__.commit}${
+          __DEVBOX_BUILD_INFO__.dirty ? "-dirty" : ""
+        }`
+      : "unknown";
 
-  // Launch: start (persists across container restarts), then open the app in
-  // the launcher iframe when it has an embeddable web UI.
-  const launch = useCallback(
-    (app: AppInfo) => {
-      void act(app, "start").then(() => {
-        const meta = TOOLS[app.id];
-        if (meta?.embed) {
-          window.location.assign(`/launcher/embed/${meta.id}`);
-        }
-      });
-    },
-    [act],
-  );
+  // Launch: start the service (the state persists across container restarts)
+  // and refresh the row. Opening the app is left to the user's "Open in New
+  // Tab" button: auto-opening trips popup blockers and races the service's
+  // own readiness.
+  const launch = useCallback((app: AppInfo) => void act(app, "start"), [act]);
 
   return (
     <div className="min-h-full">
       <header className="sticky top-0 z-10 border-b border-divider bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <HeroLink
+          <Link
             href="/launcher/"
             aria-label="Open the Dashboard"
             className="flex items-center gap-3 text-sm font-semibold tracking-tight text-foreground">
             <Box size={24} className="text-muted" />
-            DevBox
-          </HeroLink>
+            opencode-dev-sanbox
+          </Link>
           <div className="flex items-center gap-3">
             <Chip size="sm" variant="soft">
               <User size={12} />
@@ -309,6 +298,27 @@ export function Dashboard({ user }: { user: string }) {
           )}
         </section>
       </main>
+      <footer className="border-t border-divider px-6 py-4">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          <span>Build: {build}</span>
+          <span aria-hidden>·</span>
+          <a
+            href="https://github.com/im-yuuki/opencode-dev-sandbox"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline-offset-2 hover:underline">
+            GitHub
+          </a>
+          <span aria-hidden>·</span>
+          <a
+            href="https://hub.docker.com/r/imyuuki/opencode-dev-sandbox"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline-offset-2 hover:underline">
+            Docker Hub
+          </a>
+        </div>
+      </footer>
     </div>
   );
 }

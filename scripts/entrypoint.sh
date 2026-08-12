@@ -6,26 +6,63 @@ set -e
 # supervisor programs and /run/user/1000 all assume this account.
 WEB_USER=user
 
-# ---- ensure user + home ----
+# ---- 1. ensure user + home ----
+# Member of the sudo group, but with no sudoers drop-in: escalation uses the
+# real /usr/bin/sudo and the Unix password the user sets on first visit through
+# the web UI. Until that setup completes the account is locked and sudo cannot
+# be used at all.
 id "$WEB_USER" >/dev/null 2>&1 || {
   useradd -m -u 1000 -G sudo -s /bin/bash "$WEB_USER"
-  echo "$WEB_USER ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/99-nopasswd
-  chmod 0440 /etc/sudoers.d/99-nopasswd
 }
 usermod -d /workspace "$WEB_USER" 2>/dev/null || true
+
+# ---- 3. workspace ownership ----
 mkdir -p /workspace
 chown "$WEB_USER:$WEB_USER" /workspace
 
-# Cloud Commander keeps its user-adjustable preferences (notably ZIP vs
-# tar.gz packing) outside the browsable workspace root.
-mkdir -p /workspace/.devbox/cloudcmd
-chown "$WEB_USER:$WEB_USER" /workspace/.devbox/cloudcmd
-chmod 700 /workspace/.devbox/cloudcmd
+# ---- 4. managed shell setup ----
+# Colored prompt/ls/grep live in /etc/devbox/bashrc; ~/.bashrc only gets a
+# one-line source guarded by a marker. An existing .bashrc is never replaced,
+# and because the block is appended, anything the user defines after it still
+# wins. Workspaces created by an older image pick this up on the next start.
+SHELL_MARKER='# devbox managed shell setup'
+su -s /bin/bash "$WEB_USER" -c '
+  marker="'"$SHELL_MARKER"'"
+  if [ ! -f "$HOME/.bashrc" ]; then
+    : > "$HOME/.bashrc"
+  fi
+  if ! grep -Fq "$marker" "$HOME/.bashrc"; then
+    {
+      printf "\n%s\n" "$marker"
+      printf "%s\n" "[ -f /etc/devbox/bashrc ] && . /etc/devbox/bashrc"
+    } >> "$HOME/.bashrc"
+  fi
+'
+# Colored git output for every account, including root via sudo. Written to the
+# system gitconfig so a user-level color.ui setting still overrides it.
+git config --system color.ui auto 2>/dev/null || true
 
-# NOTE: no password is set here. The account is created locked and the user
-# sets their own password on first visit via the web UI (Linux PAM + chpasswd).
+# ---- 4b. OpenCode out-of-the-box config ----
+# Seeded once into the user's global OpenCode config. Written only when neither
+# opencode.jsonc nor opencode.json exists, so a config the user has edited (or
+# one restored with an older workspace volume) is never clobbered. HOME is
+# /workspace, so this lands on the persistent volume and survives a rebuild.
+su -s /bin/bash "$WEB_USER" -c '
+  oc_dir="$HOME/.config/opencode"
+  mkdir -p "$oc_dir"
+  if [ ! -f "$oc_dir/opencode.jsonc" ] && [ ! -f "$oc_dir/opencode.json" ]; then
+    cp /etc/devbox/opencode.jsonc "$oc_dir/opencode.jsonc"
+    echo "devbox: seeded OpenCode config"
+  fi
+  oc_skill_dir="$oc_dir/skills/opencode-dev-sandbox"
+  if [ ! -f "$oc_skill_dir/SKILL.md" ]; then
+    mkdir -p "$oc_skill_dir"
+    cp /etc/devbox/opencode-skills/opencode-dev-sandbox/SKILL.md "$oc_skill_dir/SKILL.md"
+    echo "devbox: seeded OpenCode DevBox skill"
+  fi
+'
 
-# ---- seed /workspace skeleton (survives empty volume mount) ----
+# ---- 5. seed /workspace skeleton (survives empty volume mount) ----
 # TigerVNC (Debian trixie) uses $HOME/.config/tigervnc; legacy ~/.vnc only
 # triggers a migration that fails on fresh volumes, so seed XDG dir directly.
 su -s /bin/bash "$WEB_USER" -c '
@@ -45,9 +82,6 @@ su -s /bin/bash "$WEB_USER" -c '
   fi
   chmod +x "$HOME/.config/tigervnc/xstartup"
 
-  if [ ! -f "$HOME/.bashrc" ]; then
-    printf "cd /workspace\nPS1=\"\\\\u@\\\\h:\\\\w$ \"\n" > "$HOME/.bashrc"
-  fi
   # lxqt-core ships no window manager; name openbox explicitly or the session
   # comes up with bare, undecorated windows.
   if [ ! -f "$HOME/.config/lxqt/session.conf" ]; then
@@ -122,11 +156,68 @@ su -s /bin/bash "$WEB_USER" -c '
   fi
 '
 
-# ---- TLS: self-signed cert, generated once on first run ----
+# ---- 6. FileBrowser state ----
+# Idempotent: the directories are re-asserted every start, but config.yaml is
+# written once. After first run that file belongs to the user.
+FB_DIR=/workspace/.devbox/filebrowser
+install -d -o "$WEB_USER" -g "$WEB_USER" -m 700 "$FB_DIR"
+install -d -o "$WEB_USER" -g "$WEB_USER" -m 700 "$FB_DIR/cache"
+if [ ! -f "$FB_DIR/config.yaml" ]; then
+  install -o "$WEB_USER" -g "$WEB_USER" -m 600 \
+    /etc/devbox/filebrowser.yaml "$FB_DIR/config.yaml"
+  echo "devbox: seeded FileBrowser config"
+fi
+# The database is created by FileBrowser itself on first start and only needs a
+# writable parent. Re-assert ownership (never contents) so a workspace written
+# by an older image stays usable by uid 1000.
+if [ -e "$FB_DIR/database.db" ]; then
+  chown "$WEB_USER:$WEB_USER" "$FB_DIR/database.db"
+fi
+
+# ---- 7. CLIProxyAPI state ----
+# 0700 throughout: this tree holds the management key, provider OAuth tokens
+# and any proxy API keys the user mints from the panel.
+CP_DIR=/workspace/.devbox/cliproxy
+CP_KEY="$CP_DIR/management.key"
+install -d -o "$WEB_USER" -g "$WEB_USER" -m 700 "$CP_DIR"
+install -d -o "$WEB_USER" -g "$WEB_USER" -m 700 "$CP_DIR/auth"
+install -d -o "$WEB_USER" -g "$WEB_USER" -m 700 "$CP_DIR/logs"
+install -d -o "$WEB_USER" -g "$WEB_USER" -m 700 "$CP_DIR/plugins"
+
+if [ ! -s "$CP_KEY" ]; then
+  # 32 bytes from the kernel CSPRNG, base64url so it pastes cleanly into the
+  # panel's login field.
+  (umask 077; openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' > "$CP_KEY")
+  chown "$WEB_USER:$WEB_USER" "$CP_KEY"
+  echo "devbox: generated CLIProxyAPI management key"
+fi
+chmod 600 "$CP_KEY"
+
+# Seeded only when no config exists at all. CLIProxyAPI bcrypt-hashes the key
+# and rewrites this file on startup, and the Management Center stores provider
+# credentials in it, so re-seeding would destroy both.
+if [ ! -f "$CP_DIR/config.yaml" ]; then
+  cp_tmp="$CP_DIR/config.yaml.devbox-new"
+  # awk on a fixed placeholder: a key containing sed delimiters or regex
+  # metacharacters cannot corrupt the output.
+  (umask 077; awk -v key="$(cat "$CP_KEY")" \
+    '{ gsub(/__DEVBOX_MANAGEMENT_KEY__/, key); print }' \
+    /etc/devbox/cliproxy.yaml > "$cp_tmp")
+  chown "$WEB_USER:$WEB_USER" "$cp_tmp"
+  chmod 600 "$cp_tmp"
+  mv "$cp_tmp" "$CP_DIR/config.yaml"
+  echo "devbox: seeded CLIProxyAPI config"
+fi
+
+# Tighten existing auth tokens without touching their contents, in case they
+# were written by an older image with a laxer umask.
+find "$CP_DIR/auth" -type f -exec chmod 600 {} + 2>/dev/null || true
+
+# ---- 8. TLS: self-signed cert, generated once on first run ----
 # Lives on the /workspace volume so the browser's trust exception survives a
-# container rebuild; delete the directory to force a new pair. The key is
-# root-owned 0600 — `user` has passwordless sudo anyway, but nothing that runs
-# as the account needs to read it (nginx opens it as root before dropping).
+# container rebuild; delete the directory to force a new pair. The key stays
+# root-owned 0600: nginx reads it as root before dropping privileges, and no
+# process running as `user` has any reason to open it.
 TLS_DIR=/workspace/.devbox/tls
 TLS_CRT="$TLS_DIR/devbox.crt"
 TLS_KEY="$TLS_DIR/devbox.key"
@@ -149,15 +240,22 @@ chown root:root "$TLS_CRT" "$TLS_KEY"
 chmod 600 "$TLS_KEY"
 chmod 644 "$TLS_CRT"
 
-# ---- ensure runtime dirs for services ----
+# ---- 9. ensure runtime dirs for services ----
 mkdir -p /run/user/1000
 chown "$WEB_USER:$WEB_USER" /run/user/1000
 chmod 700 /run/user/1000
+# tmux servers cannot survive a container stop, so remove their old runtime
+# socket directory at container startup. A Supervisor restart of only the
+# broker never runs this script and therefore leaves sessions untouched.
+rm -rf /run/user/1000/devbox-terminal
+mkdir -p /run/user/1000/devbox-terminal
+chown "$WEB_USER:$WEB_USER" /run/user/1000/devbox-terminal
+chmod 700 /run/user/1000/devbox-terminal
 mkdir -p /run/dbus
 chown messagebus:messagebus /run/dbus
 mkdir -p /var/run/nginx
 
-# ---- Chrome sandbox capability ----
+# ---- 10. Chrome sandbox capability ----
 # Docker's default seccomp profile blocks creation of nested user namespaces.
 # Probe rather than guess so Chrome keeps its renderer sandbox when supported.
 mkdir -p /run/devbox
@@ -170,4 +268,5 @@ else
 fi
 chmod 644 /run/devbox/caps
 
+# ---- 11. hand off to supervisor as PID 1 ----
 exec /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf "$@"

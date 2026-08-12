@@ -70,6 +70,7 @@ export interface MetricsGpu {
 
 export interface SystemMetricsResponse {
   monotonic: number;
+  uptimeSeconds: number | null;
   cpu: MetricsCpu | null;
   load: MetricsLoad | null;
   memory: MetricsMemory | null;

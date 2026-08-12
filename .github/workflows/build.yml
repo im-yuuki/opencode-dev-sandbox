@@ -1,4 +1,4 @@
-name: Build DevBox image
+name: Build opencode-dev-sanbox image
 
 on:
   # Every branch push builds its own image variant; version tags (v*) and

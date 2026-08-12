@@ -23,3 +23,6 @@ coverage/
 
 # GitHub Actions local run artifacts
 .actions/
+
+# Developer private files
+private/
