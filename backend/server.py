@@ -15,6 +15,7 @@ import secrets
 import subprocess
 import threading
 import time
+import tempfile
 import urllib.parse
 
 import metrics
@@ -38,6 +39,7 @@ RL_LOCK = 5 * 60  # lockout once the window is full
 # `docker rm -f` + `docker run` replacement; a bare container filesystem would not).
 STATE_DIR = "/workspace/.devbox"
 STATE_FILE = os.path.join(STATE_DIR, "apps.json")
+PASSWORD_HASH_FILE = os.path.join(STATE_DIR, "user-password.hash")
 
 # Applications shown on the dashboard. id -> (display name, [supervisor
 # programs]). nginx (gateway) and dbus stay supervised but are never listed:
@@ -128,6 +130,51 @@ def password_locked() -> bool:
     return True
 
 
+def current_password_hash() -> str | None:
+    """Return USER's usable shadow hash without exposing the plaintext password."""
+    try:
+        with open("/etc/shadow", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                name, pwfield, *_ = line.rstrip("\n").split(":")
+                if name == USER and pwfield and not pwfield.startswith(("!", "*")):
+                    return pwfield
+    except Exception:
+        pass
+    return None
+
+
+def persist_password_hash() -> bool:
+    """Atomically persist the Unix password hash on the workspace volume."""
+    password_hash = current_password_hash()
+    if not password_hash:
+        return False
+
+    tmp_path = None
+    try:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="ascii",
+            dir=STATE_DIR,
+            prefix=".user-password.",
+            delete=False,
+        ) as f:
+            tmp_path = f.name
+            f.write(password_hash)
+            f.write("\n")
+        os.chown(tmp_path, 0, 0)
+        os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, PASSWORD_HASH_FILE)
+        return True
+    except (OSError, UnicodeEncodeError):
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        return False
+
+
 def set_password(password: str) -> bool:
     """Set the Unix password for USER (chpasswd). Refuses if already set."""
     if not password_locked():
@@ -135,7 +182,11 @@ def set_password(password: str) -> bool:
     p = subprocess.run(
         ["chpasswd"], input=f"{USER}:{password}\n", text=True, capture_output=True
     )
-    return p.returncode == 0
+    if p.returncode != 0:
+        return False
+    if not persist_password_hash():
+        print("devbox: warning: password set but hash could not be persisted", flush=True)
+    return True
 
 
 # ---------------- sessions ----------------
@@ -471,6 +522,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
+    # This also covers an in-place service restart after upgrading the control
+    # plane. A recreated container restores the hash in entrypoint.sh first.
+    if not os.path.exists(PASSWORD_HASH_FILE) and not password_locked():
+        if persist_password_hash():
+            print("devbox: persisted existing user password hash", flush=True)
     # Bring back applications that were enabled before the container restarted.
     # Everything is autostart=false under supervisord; nginx and dbus come back
     # via their own units (nginx is on by default as the gateway).

@@ -15,12 +15,17 @@
 # uid-1000 process substitute the binaries that root executes.
 set -eu
 
+export HOME=/workspace
+export NPM_CONFIG_PREFIX=/workspace/.local
+export NPM_CONFIG_CACHE=/workspace/.npm
+export OPENCHAMBER_PACKAGE_MANAGER=npm
 export NIX_STATE_HOME=/nix/var/nix/user-state
 export NIX_CACHE_HOME=/nix/var/nix/user-cache
 
-# Nix profile first so `nix profile install` shadows the Debian package, then
-# the system directories. No sbin: these services never need root utilities.
-PATH=/nix/var/nix/user-state/profiles/profile/bin:/usr/local/bin:/usr/bin:/bin
+# User-local npm binaries must win over any package left by an older image.
+# Nix follows so `nix profile install` still shadows Debian packages, then the
+# system directories. No sbin: these services never need root utilities.
+PATH=/workspace/.local/bin:/nix/var/nix/user-state/profiles/profile/bin:/usr/local/bin:/usr/bin:/bin
 export PATH
 
 exec "$@"

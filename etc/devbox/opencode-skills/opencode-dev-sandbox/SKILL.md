@@ -33,8 +33,9 @@ network exposure all follow the image rules below.
 The image already contains the following tools. Check `command -v <tool>` before assuming a tool
 is missing.
 
-- OpenCode is installed globally as `opencode`; OpenChamber is installed globally as
-  `openchamber` and provides the browser agent UI.
+- OpenCode is installed as the uid-1000 user-local `opencode`; OpenChamber is installed as the
+  uid-1000 user-local `openchamber` and provides the browser agent UI. Their npm prefix is
+  `/workspace/.local`, which is writable by the runtime account and is first on the managed PATH.
 - Node.js LTS and npm are installed globally. Python 3 includes `pip`, `venv`, `aiohttp`, and
   `pamela`.
 - Git, GNU core utilities, Bash completion, `less`, `file`, `tree`, `find`, `grep`, `sed`, `gawk`,
@@ -82,7 +83,10 @@ runtime environment sets:
 
 - `NIX_STATE_HOME=/nix/var/nix/user-state`
 - `NIX_CACHE_HOME=/nix/var/nix/user-cache`
-- `/nix/var/nix/user-state/profiles/profile/bin` first on `PATH`
+- `NPM_CONFIG_PREFIX=/workspace/.local`
+- `NPM_CONFIG_CACHE=/workspace/.npm`
+- `/workspace/.local/bin` first on `PATH`, followed by
+  `/nix/var/nix/user-state/profiles/profile/bin`
 
 Use `/usr/local/bin/devbox-user-env <command>` for a supervised user service or for a shell that
 must reproduce the service environment. The interactive `/etc/devbox/bashrc` also exports the Nix

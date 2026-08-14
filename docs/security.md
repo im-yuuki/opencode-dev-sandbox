@@ -10,7 +10,8 @@ the boundary it defends is the container, not the processes inside it.
   private tmux sessions. Session IDs are not a multi-user security boundary; processes already
   running as uid 1000 can inspect or terminate them.
 - **Shared secrets on the volume.** `/workspace/.devbox` holds the CLIProxy management key,
-  provider OAuth tokens, proxy API keys and the FileBrowser database. Directory modes are
+  provider OAuth tokens, proxy API keys, the FileBrowser database and the Unix password hash.
+  The hash is stored without the plaintext password. Directory modes are
   restrictive against *other* accounts, but everything running as uid 1000 can read them. The TLS
   private key is the one exception: root-owned `0600`, since only nginx needs it. Hiding dotfiles
   in the file manager is tidiness, not a boundary.

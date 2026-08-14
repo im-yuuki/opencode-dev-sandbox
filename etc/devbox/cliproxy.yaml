@@ -27,9 +27,20 @@ remote-management:
 
 auth-dir: "/workspace/.devbox/cliproxy/auth"
 
-logging-to-file: false
-usage-statistics-enabled: false
+# Keep CLIProxyAPI logs on the persistent workspace tree. The entrypoint
+# creates /workspace/.devbox/cliproxy/logs with restrictive permissions.
+logging-to-file: true
+usage-statistics-enabled: true
 ws-auth: true
+
+# Match the runtime profile used by the current Management Center setup.
+claude-header-defaults:
+  stabilize-device-profile: true
+
+# Keep the plugin subsystem available; individual plugin credentials/config
+# remain user-managed and are never seeded into the image.
+plugins:
+  enabled: true
 
 # No api-keys are seeded on purpose. The proxy stays reachable only from
 # loopback inside the container until the user mints a key from the Management

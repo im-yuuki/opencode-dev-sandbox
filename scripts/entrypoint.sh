@@ -16,9 +16,25 @@ id "$WEB_USER" >/dev/null 2>&1 || {
 }
 usermod -d /workspace "$WEB_USER" 2>/dev/null || true
 
-# ---- 3. workspace ownership ----
+# ---- 2. workspace ownership ----
 mkdir -p /workspace
 chown "$WEB_USER:$WEB_USER" /workspace
+
+# ---- 3. user-local Node package seed ----
+# The image keeps a uid-1000 npm install outside the volume so a pre-existing
+# workspace can be upgraded without requiring network access during boot. Once
+# copied, npm updates write directly to /workspace/.local and this seed never
+# overwrites them.
+USER_LOCAL=/workspace/.local
+NODE_GLOBAL_SEED=/opt/devbox/npm-global
+if [ ! -x "$USER_LOCAL/bin/opencode" ] || [ ! -x "$USER_LOCAL/bin/openchamber" ]; then
+  install -d -o "$WEB_USER" -g "$WEB_USER" -m 0755 "$USER_LOCAL"
+  if [ -d "$NODE_GLOBAL_SEED" ]; then
+    rsync -a --ignore-existing "$NODE_GLOBAL_SEED/" "$USER_LOCAL/"
+    chown -R "$WEB_USER:$WEB_USER" "$USER_LOCAL"
+    echo "devbox: seeded user-local OpenCode/OpenChamber packages"
+  fi
+fi
 
 # ---- 4. managed shell setup ----
 # Colored prompt/ls/grep live in /etc/devbox/bashrc; ~/.bashrc only gets a
@@ -207,6 +223,24 @@ if [ ! -f "$CP_DIR/config.yaml" ]; then
   chmod 600 "$cp_tmp"
   mv "$cp_tmp" "$CP_DIR/config.yaml"
   echo "devbox: seeded CLIProxyAPI config"
+fi
+
+# ---- 8. persisted Unix password ----
+# The web setup stores only the system shadow hash, never the plaintext
+# password. Restore it before supervisord starts so a recreated container keeps
+# the same login and sudo password.
+PASSWORD_HASH_FILE=/workspace/.devbox/user-password.hash
+if [ -s "$PASSWORD_HASH_FILE" ]; then
+  password_hash="$(< "$PASSWORD_HASH_FILE")"
+  if [[ "$password_hash" == \$* && "$password_hash" != *:* && "$password_hash" != *[[:space:]]* ]]; then
+    usermod -p "$password_hash" "$WEB_USER"
+    chown root:root "$PASSWORD_HASH_FILE"
+    chmod 600 "$PASSWORD_HASH_FILE"
+    echo "devbox: restored user password from workspace"
+  else
+    echo "devbox: invalid persisted user password hash" >&2
+    exit 1
+  fi
 fi
 
 # Tighten existing auth tokens without touching their contents, in case they

@@ -41,6 +41,8 @@ Then open either **<http://localhost:8080/launcher/>** or **<https://localhost:8
   Unix password of the `user` account, so `sudo` uses it too.
 - Any free host ports work, for example `-p 12345:80 -p 12346:443`.
 - `linux/amd64` and `linux/arm64` images are published.
+- Existing-container upgrades and password migration are documented in
+  [Migration guide](docs/migration.md).
 
 > [!CAUTION]
 > This is a trusted single-user dev box. Everything you run in it — agent, desktop, editor, file
@@ -77,6 +79,8 @@ profile and state directories the apps use. A plain `su - user` works too, but a
 - **Real desktop.** LXQt over noVNC, resolution follows your browser window.
 - **Real sudo.** Standard `/usr/bin/sudo` with your Unix password. No passwordless drop-in, no
   shim.
+- **User-owned agent updates.** OpenCode and OpenChamber are installed under `/workspace/.local`
+  for uid 1000, so their own web update controls do not need root or write to `/usr`.
 - **Nix for the rest.** Single-user Nix, no daemon and no sudo needed to install packages —
   compilers, CMake and anything else per project.
 - **Batteries included.** Node.js LTS, Python, Git, Chrome and a wide set of Linux CLI tools

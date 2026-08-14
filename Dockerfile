@@ -98,13 +98,26 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     set -eux; apt-get update; apt-get install -y --no-install-recommends google-chrome-stable fonts-liberation fonts-dejavu-core fonts-noto-core
 
-# ============ Node global packages ============
+# ============ user account ============
+# The runtime account owns the application install. The staging prefix lives
+# outside /workspace so the entrypoint can seed it into an existing workspace
+# volume without falling back to a root-owned global npm tree.
+RUN set -eux; \
+    useradd -m -u 1000 -G sudo -s /bin/bash user; \
+    mkdir -p /workspace; \
+    chown user:user /workspace; \
+    install -d -o user -g user -m 0755 /opt/devbox/npm-global
+
+# ============ user Node packages ============
 # OpenChamber ships @openchamber/web on npm, so it is installed from the
 # registry rather than by piping install.sh from the main branch through bash.
+# Install as uid 1000 using the same npm global layout that runtime updates use.
 # OpenCode's out-of-the-box config and the DevBox skill are seeded per-workspace
-# by the entrypoint from /etc/devbox/, not baked into a global path here.
-RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-    set -eux; npm install -g --no-audit --no-fund opencode-ai @openchamber/web; rm -rf /tmp/*
+# by the entrypoint from /etc/devbox/, not baked into the workspace volume.
+RUN --mount=type=cache,target=/workspace/.npm,uid=1000,gid=1000,sharing=locked \
+    set -eux; \
+    su -s /bin/bash user -c 'HOME=/workspace npm install -g --prefix /opt/devbox/npm-global --no-audit --no-fund opencode-ai @openchamber/web'; \
+    rm -rf /tmp/*
 
 # ============ code-server ============
 RUN set -eux; arch="$(dpkg --print-architecture)"; ver="$(curl -fsSL https://api.github.com/repos/coder/code-server/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"; test -n "$ver"; aria2c $ARIA2_OPTS -o /tmp/cs.tar.gz "https://github.com/coder/code-server/releases/download/v${ver}/code-server-${ver}-linux-${arch}.tar.gz"; mkdir -p /usr/local/lib/code-server; tar -xzf /tmp/cs.tar.gz -C /usr/local/lib/code-server --strip-components=1; rm -rf /tmp/cs.tar.gz
@@ -118,11 +131,6 @@ RUN set -eux; arch="$(dpkg --print-architecture)"; curl -fsSL -o /usr/local/bin/
 # GLIBC 2.17 baseline. Upstream names the 64-bit ARM archive aarch64, not arm64.
 # The panel asset is baked in so the proxy never has to fetch it at runtime.
 RUN set -eux; case "$(dpkg --print-architecture)" in amd64) arch=amd64 ;; arm64) arch=aarch64 ;; *) echo "unsupported architecture" >&2; exit 1 ;; esac; ver="$(curl -fsSL https://api.github.com/repos/router-for-me/CLIProxyAPI/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"; test -n "$ver"; aria2c $ARIA2_OPTS -o /tmp/cliproxy.tar.gz "https://github.com/router-for-me/CLIProxyAPI/releases/download/v${ver}/CLIProxyAPI_${ver}_linux_${arch}.tar.gz"; mkdir -p /tmp/cliproxy; tar -xzf /tmp/cliproxy.tar.gz -C /tmp/cliproxy cli-proxy-api; install -D -m 0755 /tmp/cliproxy/cli-proxy-api /usr/local/bin/cliproxyapi; install -d -m 0755 /opt/cliproxy/static; curl -fsSL -o /opt/cliproxy/static/management.html "https://github.com/router-for-me/Cli-Proxy-API-Management-Center/releases/latest/download/management.html"; chmod 0644 /opt/cliproxy/static/management.html; rm -rf /tmp/cliproxy /tmp/cliproxy.tar.gz
-
-# ============ user account ============
-# Member of the sudo group with no sudoers drop-in: escalation goes through the
-# real /usr/bin/sudo and the Unix password set during first-run web setup.
-RUN set -eux; useradd -m -u 1000 -G sudo -s /bin/bash user; usermod -d /workspace user; mkdir -p /workspace; chown user:user /workspace
 
 # ============ Nix (single-user) ============
 # Store owned by uid 1000 so the agent installs packages without sudo. No

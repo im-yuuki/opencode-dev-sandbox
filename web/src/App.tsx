@@ -64,7 +64,23 @@ function RequireAuth({
 
 export function App() {
   const gate = useGate();
-  const onErrorRoute = useLocation().pathname === "/error";
+  const location = useLocation();
+
+  useEffect(() => {
+    const isTerminal = location.pathname === "/terminal";
+    document.title = isTerminal
+      ? "Terminal | OpenCode DevBox"
+      : "Launcher | OpenCode DevBox";
+
+    const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (favicon) {
+      favicon.href = isTerminal
+        ? "/launcher/favicon-terminal.svg"
+        : "/launcher/favicon-launcher.svg";
+    }
+  }, [location.pathname]);
+
+  const onErrorRoute = location.pathname === "/error";
 
   // /error is the one route that must render without a working control plane:
   // nginx sends users here precisely when something upstream is broken, and the

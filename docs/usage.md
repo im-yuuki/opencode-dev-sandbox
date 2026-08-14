@@ -25,6 +25,8 @@ That prompts for the password you set on the first-run web form, and standard De
 and timestamp caching apply.
 
 - The web password *is* the Unix password. There is one credential, not two.
+- Only the Unix shadow hash is persisted at `/workspace/.devbox/user-password.hash`, so the same
+  login and sudo password survives container recreation as long as the workspace volume is kept.
 - Until first-run setup completes the account is locked, so `sudo` cannot be used at all.
 - There is no `NOPASSWD` sudoers drop-in and no passwordless escalation.
 - `devbox-root` and the fake `sudo` shim from earlier versions are gone.
@@ -61,6 +63,25 @@ rebuild the environment. A per-project flake restores itself; a `nix profile ins
 > [!WARNING]
 > Single-user Nix does not sandbox derivations (`sandbox = false`). Builds run with the same uid as
 > the agent. That is fine for your own projects and not appropriate for untrusted derivations.
+
+## User-local Node packages
+
+OpenCode and OpenChamber are installed as uid 1000 packages under the persistent workspace prefix:
+
+```text
+/workspace/.local/bin
+/workspace/.local/lib/node_modules
+```
+
+The managed service environment sets `NPM_CONFIG_PREFIX=/workspace/.local` and puts the prefix's
+`bin` directory first on `PATH`. This matches the package manager environment used by the web
+update controls, so updating OpenCode or OpenChamber does not require root or write access to
+`/usr`.
+
+The image keeps a user-owned seed outside the workspace and copies it only when either application
+is missing from the volume. Existing user-installed versions are never overwritten. After updating
+OpenChamber from its web UI, restart the **Agent** application from the Launcher to load the new
+server process; the upstream container update flow intentionally keeps the current server online.
 
 ## CLI Proxy
 

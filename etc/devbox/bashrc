@@ -94,6 +94,14 @@ fi
 # uid 1000 only. The profile is user-writable, so exporting it for root (`sudo
 # -i`) would let a uid-1000 process replace the binaries root runs.
 if [ "$(id -u)" -eq 1000 ] && [ -d /nix ]; then
+  export NPM_CONFIG_PREFIX="$HOME/.local"
+  export NPM_CONFIG_CACHE="$HOME/.npm"
+  export OPENCHAMBER_PACKAGE_MANAGER=npm
+  case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) PATH="$HOME/.local/bin:$PATH"; export PATH ;;
+  esac
+
   export NIX_STATE_HOME=/nix/var/nix/user-state
   export NIX_CACHE_HOME=/nix/var/nix/user-cache
   case ":$PATH:" in
