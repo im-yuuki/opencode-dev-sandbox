@@ -25,13 +25,13 @@ self-signed HTTPS, one login.
 ## Quick start
 
 ```bash
-docker run -d --security-opt seccomp=unconfined --tmpfs /tmp --shm-size=1g -p 8080:80 -p 8443:443 --name devbox -v devbox-workspace:/workspace ghcr.io/im-yuuki/opencode-dev-sandbox:latest
+docker run -d --security-opt seccomp=unconfined --restart=unless-stopped --pull always --tmpfs /tmp --shm-size=1g -p 127.0.0.1:8080:80/tcp -p 127.0.0.1:8443:443/tcp --name devbox -v devbox-workspace:/workspace ghcr.io/im-yuuki/opencode-dev-sandbox:latest
 ```
 
 Docker Hub mirror:
 
 ```bash
-docker run -d --security-opt seccomp=unconfined --tmpfs /tmp --shm-size=1g -p 8080:80 -p 8443:443 --name devbox -v devbox-workspace:/workspace imyuuki/opencode-dev-sandbox:latest
+docker run -d --security-opt seccomp=unconfined --restart=unless-stopped --pull always --tmpfs /tmp --shm-size=1g -p 127.0.0.1:8080:80/tcp -p 127.0.0.1:8443:443/tcp --name devbox -v devbox-workspace:/workspace imyuuki/opencode-dev-sandbox:latest
 ```
 
 Then open either **<http://localhost:8080/launcher/>** or **<https://localhost:8443/launcher/>**.
