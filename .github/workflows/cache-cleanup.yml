@@ -1,0 +1,41 @@
+name: Prune BuildKit cache
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  prune:
+    name: Delete cache entries older than three days
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prune GHCR cache manifests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          owner="${GITHUB_REPOSITORY_OWNER}"
+          package="${GITHUB_REPOSITORY#*/}"
+          owner_type="$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.owner.type')"
+          if [[ "$owner_type" == "Organization" ]]; then
+            versions_endpoint="orgs/${owner}/packages/container/${package}/versions"
+          else
+            versions_endpoint="users/${owner}/packages/container/${package}/versions"
+          fi
+
+          cutoff="$(date -u -d '3 days ago' +%s)"
+          gh api --paginate "${versions_endpoint}?per_page=100" \
+            --jq '.[] | select(any(.metadata.container.tags[]?; startswith("cache-"))) | [.id, .created_at] | @tsv' \
+            | while IFS=$'\t' read -r version_id created_at; do
+                created_epoch="$(date -u -d "$created_at" +%s)"
+                if (( created_epoch < cutoff )); then
+                  echo "Deleting cache version ${version_id} created at ${created_at}"
+                  gh api --method DELETE "${versions_endpoint}/${version_id}"
+                fi
+              done

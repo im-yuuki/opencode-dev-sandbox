@@ -3,6 +3,12 @@
 # ============ stage 1: independent frontend build container ============
 FROM node:lts-trixie-slim AS frontend-build
 WORKDIR /ui
+ARG BUILD_BRANCH=""
+ARG BUILD_COMMIT=""
+ARG BUILD_DIRTY=""
+ENV DEVBOX_BUILD_BRANCH=$BUILD_BRANCH \
+    DEVBOX_BUILD_COMMIT=$BUILD_COMMIT \
+    DEVBOX_BUILD_DIRTY=$BUILD_DIRTY
 COPY web/package.json web/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm ci --no-audit --no-fund

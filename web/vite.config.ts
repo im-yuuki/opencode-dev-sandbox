@@ -20,22 +20,35 @@ function gitValue(repoRoot: string, args: string[]): string {
   }
 }
 
+function environmentValue(name: string): string | undefined {
+  const value = process.env[name]?.trim()
+  return value || undefined
+}
+
 function buildInfo() {
   const repoRoot = resolve(import.meta.dirname, '..')
-  let dirty: boolean | null = null
-  try {
-    dirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim().length > 0
-  } catch {
-    // Keep the artifact usable when it is built from a source archive or when
-    // git is not installed in the build environment.
+  const dirtyValue = environmentValue('DEVBOX_BUILD_DIRTY')
+  let dirty: boolean | null =
+    dirtyValue === 'true' ? true : dirtyValue === 'false' ? false : null
+
+  if (dirty == null) {
+    try {
+      dirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim().length > 0
+    } catch {
+      // Keep the artifact usable when built from a source archive or without git.
+    }
   }
+
+  const environmentCommit = environmentValue('DEVBOX_BUILD_COMMIT')
   return {
-    branch: gitValue(repoRoot, ['branch', '--show-current']),
-    commit: gitValue(repoRoot, ['rev-parse', '--short=12', 'HEAD']),
+    // Docker's frontend stage intentionally has no .git directory. CI passes
+    // these values as build args, while local source builds still use git.
+    branch: environmentValue('DEVBOX_BUILD_BRANCH') ?? gitValue(repoRoot, ['branch', '--show-current']),
+    commit: environmentCommit?.slice(0, 12) ?? gitValue(repoRoot, ['rev-parse', '--short=12', 'HEAD']),
     dirty,
   }
 }

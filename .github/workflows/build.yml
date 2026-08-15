@@ -94,9 +94,13 @@ jobs:
           # arch and branch keeps its own ref so concurrent jobs never race the
           # same cache manifest. Import is best-effort; export runs only on
           # non-PR runs so an unmerged PR never overwrites cache that branch
-          # builds from.
+          # builds from. cache-cleanup.yml removes cache manifests after 3 days.
           cache-from: type=registry,ref=${{ steps.refs.outputs.cache }}
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0},mode=max', steps.refs.outputs.cache) || '' }}
+          build-args: |
+            BUILD_BRANCH=${{ github.ref_name }}
+            BUILD_COMMIT=${{ github.sha }}
+            BUILD_DIRTY=false
 
   build-arm64:
     name: Build · linux/arm64
@@ -157,6 +161,10 @@ jobs:
             ${{ steps.refs.outputs.dharch }}
           cache-from: type=registry,ref=${{ steps.refs.outputs.cache }}
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0},mode=max', steps.refs.outputs.cache) || '' }}
+          build-args: |
+            BUILD_BRANCH=${{ github.ref_name }}
+            BUILD_COMMIT=${{ github.sha }}
+            BUILD_DIRTY=false
 
   merge:
     name: Merge multi-arch tags
