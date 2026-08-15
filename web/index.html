@@ -6,12 +6,19 @@
     <meta name="color-scheme" content="light dark" />
     <title>Launcher | OpenCode DevBox</title>
     <script>
-      // System theme sync, before first paint (no flash).
+      // Theme sync, before first paint (no flash). System remains the default;
+      // an explicit light/dark choice is stored only in this browser.
       (function () {
         var mq = window.matchMedia("(prefers-color-scheme: dark)");
         function apply() {
-          document.documentElement.classList.toggle("dark", mq.matches);
-          document.documentElement.style.colorScheme = mq.matches ? "dark" : "light";
+          var stored = null;
+          try {
+            stored = window.localStorage.getItem("devbox-theme");
+          } catch (_) {}
+          var isDark = stored === "dark" || (stored !== "light" && mq.matches);
+          document.documentElement.classList.toggle("dark", isDark);
+          document.documentElement.dataset.theme = isDark ? "dark" : "light";
+          document.documentElement.style.colorScheme = isDark ? "dark" : "light";
         }
         apply();
         mq.addEventListener("change", apply);

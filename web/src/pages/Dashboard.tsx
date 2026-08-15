@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { api, type AppInfo } from "../api";
 import { SystemMetrics } from "../components/SystemMetrics";
+import { SettingsDrawer } from "../components/SettingsDrawer";
 import { TOOLS } from "../tools";
 
 function useApps() {
@@ -250,11 +251,12 @@ export function Dashboard({ user }: { user: string }) {
             opencode-dev-sanbox
           </Link>
           <div className="flex items-center gap-3">
-            <Chip size="sm" variant="soft">
-              <User size={12} />
-              {user}
-            </Chip>
-            <Button
+             <Chip size="sm" variant="soft">
+               <User size={12} />
+               {user}
+             </Chip>
+             <SettingsDrawer />
+             <Button
               isIconOnly
               size="sm"
               variant="danger"

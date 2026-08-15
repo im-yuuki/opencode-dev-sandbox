@@ -3,6 +3,31 @@
 set -e
 
 args=("$@")
+
+# Chrome 136+ requires a non-default profile when exposing the DevTools
+# endpoint. Keep the browser attachable while respecting explicit automation
+# flags and every argument supplied by the caller.
+has_remote_debugging=false
+has_user_data_dir=false
+for arg in "${args[@]}"; do
+  case "$arg" in
+    --remote-debugging-port|--remote-debugging-port=*|--remote-debugging-pipe)
+      has_remote_debugging=true
+      ;;
+    --user-data-dir|--user-data-dir=*)
+      has_user_data_dir=true
+      ;;
+  esac
+done
+
+if [ "$has_remote_debugging" = false ]; then
+  args+=(--remote-debugging-address=127.0.0.1)
+  args+=(--remote-debugging-port="${CHROME_REMOTE_DEBUGGING_PORT:-9222}")
+  if [ "$has_user_data_dir" = false ]; then
+    args+=(--user-data-dir="${CHROME_DEVTOOLS_USER_DATA_DIR:-/workspace/.config/google-chrome-devtools}")
+  fi
+fi
+
 if ! grep -qx 'userns=yes' /run/devbox/caps 2>/dev/null; then
   echo 'devbox: warning: Chrome sandbox unavailable because nested user namespaces are blocked' >&2
   args+=(--no-sandbox)

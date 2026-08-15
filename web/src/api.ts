@@ -23,6 +23,13 @@ export interface ApiApps {
   apps: AppInfo[];
 }
 
+export interface UserSettings {
+  gitUserName: string | null;
+  gitUserEmail: string | null;
+  gitDefaultBranch: string | null;
+  timezone: string;
+}
+
 export interface MetricsCpu {
   /** Cumulative CPU time in nanoseconds; delta-derived % client-side. */
   usageNs: number | null;
@@ -110,6 +117,21 @@ export const api = {
       body: JSON.stringify({ password }),
     }).then(j<{ user: string }>),
   logout: () => fetch("/launcher/api/v1/logout", { method: "POST", credentials: "include" }).then(j<Record<string, never>>),
+  settings: () => fetch("/launcher/api/v1/settings", { credentials: "include" }).then(j<UserSettings>),
+  updateSettings: (settings: UserSettings) =>
+    fetch("/launcher/api/v1/settings", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    }).then(j<UserSettings>),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    fetch("/launcher/api/v1/password", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }).then(j<{ ok: true }>),
   services: () => fetch("/launcher/api/v1/services", { credentials: "include" }).then(j<ApiApps>),
   serviceAction: (id: string, action: "start" | "stop" | "restart") =>
     fetch(`/launcher/api/v1/services/${encodeURIComponent(id)}/${action}`, {

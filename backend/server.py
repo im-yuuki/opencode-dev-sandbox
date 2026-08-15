@@ -11,6 +11,8 @@ import http.server
 import importlib
 import json
 import os
+import pwd
+import re
 import secrets
 import subprocess
 import threading
@@ -40,6 +42,14 @@ RL_LOCK = 5 * 60  # lockout once the window is full
 STATE_DIR = "/workspace/.devbox"
 STATE_FILE = os.path.join(STATE_DIR, "apps.json")
 PASSWORD_HASH_FILE = os.path.join(STATE_DIR, "user-password.hash")
+TIMEZONE_FILE = os.path.join(STATE_DIR, "timezone")
+ZONEINFO_DIR = "/usr/share/zoneinfo"
+DEFAULT_TIMEZONE = "Etc/UTC"
+
+try:
+    USER_ACCOUNT = pwd.getpwnam(USER)
+except KeyError:
+    USER_ACCOUNT = None
 
 # Applications shown on the dashboard. id -> (display name, [supervisor
 # programs]). nginx (gateway) and dbus stay supervised but are never listed:
@@ -187,6 +197,203 @@ def set_password(password: str) -> bool:
     if not persist_password_hash():
         print("devbox: warning: password set but hash could not be persisted", flush=True)
     return True
+
+
+def change_password(current: str, password: str) -> str | None:
+    """Change the configured Unix password after verifying the old one."""
+    if password_locked():
+        return "password is not configured"
+    if not pam_authenticate(current):
+        return "current password is incorrect"
+    result = subprocess.run(
+        ["chpasswd"], input=f"{USER}:{password}\n", text=True, capture_output=True
+    )
+    if result.returncode != 0:
+        return "failed to change password"
+    if not persist_password_hash():
+        print("devbox: warning: password changed but hash could not be persisted", flush=True)
+    return None
+
+
+# ---------------- user settings ----------------
+def user_environment() -> dict[str, str]:
+    env = os.environ.copy()
+    if USER_ACCOUNT:
+        env["HOME"] = USER_ACCOUNT.pw_dir
+    return env
+
+
+def git_config_value(key: str) -> str | None:
+    result = subprocess.run(
+        ["git", "config", "--global", "--get", key],
+        env=user_environment(),
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
+def set_git_config_value(key: str, value: str) -> bool:
+    if value:
+        args = ["git", "config", "--global", key, value]
+    else:
+        args = ["git", "config", "--global", "--unset-all", key]
+    result = subprocess.run(args, env=user_environment(), capture_output=True, text=True)
+    # --unset-all exits 5 when the key did not exist, which is already the
+    # requested state.
+    if not value and result.returncode == 5:
+        return True
+    if result.returncode != 0:
+        return False
+    if USER_ACCOUNT:
+        config_path = os.path.join(USER_ACCOUNT.pw_dir, ".gitconfig")
+        try:
+            os.chown(config_path, USER_ACCOUNT.pw_uid, USER_ACCOUNT.pw_gid)
+        except OSError:
+            pass
+    return True
+
+
+def valid_timezone(value: str) -> str | None:
+    if not value or "\x00" in value or value.startswith("/") or ".." in value:
+        return None
+    candidate = os.path.realpath(os.path.join(ZONEINFO_DIR, value))
+    try:
+        inside_zoneinfo = os.path.commonpath([ZONEINFO_DIR, candidate]) == ZONEINFO_DIR
+    except ValueError:
+        inside_zoneinfo = False
+    if not inside_zoneinfo or not os.path.isfile(candidate):
+        return None
+    return value
+
+
+def configured_timezone() -> str:
+    try:
+        with open(TIMEZONE_FILE, encoding="ascii") as f:
+            saved = f.read().strip()
+        if valid_timezone(saved):
+            return saved
+    except OSError:
+        pass
+
+    try:
+        target = os.path.realpath("/etc/localtime")
+        if target.startswith(f"{ZONEINFO_DIR}/"):
+            detected = target[len(ZONEINFO_DIR) + 1 :]
+            if valid_timezone(detected):
+                return "UTC" if detected == "Etc/UTC" else detected
+    except OSError:
+        pass
+    return DEFAULT_TIMEZONE
+
+
+def persist_timezone(value: str) -> bool:
+    tmp_path = None
+    try:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="ascii", dir=STATE_DIR, prefix=".timezone.", delete=False
+        ) as f:
+            tmp_path = f.name
+            f.write(value)
+            f.write("\n")
+        os.chown(tmp_path, 0, 0)
+        os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, TIMEZONE_FILE)
+        return True
+    except (OSError, UnicodeEncodeError):
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        return False
+
+
+def set_timezone(value: str) -> bool:
+    value = valid_timezone(value) or ""
+    if not value:
+        return False
+    zone_path = os.path.realpath(os.path.join(ZONEINFO_DIR, value))
+    tmp_link = "/etc/.devbox-localtime"
+    try:
+        try:
+            os.unlink(tmp_link)
+        except FileNotFoundError:
+            pass
+        os.symlink(zone_path, tmp_link)
+        os.replace(tmp_link, "/etc/localtime")
+        with open("/etc/timezone", "w", encoding="ascii") as f:
+            f.write(value)
+            f.write("\n")
+        return persist_timezone(value)
+    except (OSError, UnicodeEncodeError):
+        try:
+            os.unlink(tmp_link)
+        except OSError:
+            pass
+        return False
+
+
+def read_settings() -> dict[str, str | None]:
+    return {
+        "gitUserName": git_config_value("user.name"),
+        "gitUserEmail": git_config_value("user.email"),
+        "gitDefaultBranch": git_config_value("init.defaultBranch"),
+        "timezone": configured_timezone(),
+    }
+
+
+def valid_text(value: object, max_length: int = 200) -> str | None:
+    text = str(value or "").strip()
+    if len(text) > max_length or "\n" in text or "\r" in text or "\x00" in text:
+        return None
+    return text
+
+
+def update_settings(body: dict) -> str | None:
+    name = valid_text(body.get("gitUserName"))
+    email = valid_text(body.get("gitUserEmail"))
+    branch = valid_text(body.get("gitDefaultBranch"), 100)
+    timezone = valid_text(body.get("timezone"), 100)
+    if None in (name, email, branch, timezone):
+        return "invalid setting value"
+    assert name is not None and email is not None and branch is not None and timezone is not None
+    if email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        return "invalid git email"
+    if branch and (
+        not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", branch)
+        or ".." in branch
+        or "@{" in branch
+        or branch.endswith((".", "/"))
+        or "/." in branch
+    ):
+        return "invalid git default branch"
+    if not timezone or not valid_timezone(timezone):
+        return "invalid timezone"
+    for key, value in (
+        ("user.name", name),
+        ("user.email", email),
+        ("init.defaultBranch", branch),
+    ):
+        if not set_git_config_value(key, value):
+            return "failed to update git configuration"
+    if not set_timezone(timezone):
+        return "failed to update timezone"
+    return None
+
+
+def restore_timezone() -> None:
+    try:
+        with open(TIMEZONE_FILE, encoding="ascii") as f:
+            saved = f.read().strip()
+    except OSError:
+        return
+    if valid_timezone(saved):
+        set_timezone(saved)
 
 
 # ---------------- sessions ----------------
@@ -404,6 +611,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     ]
                 }
             )
+        if path == "/api/v1/settings":
+            if not self._authed_user():
+                return self._send({"error": "unauthorized"}, 401)
+            return self._send(read_settings())
         if path == "/api/v1/metrics":
             if not self._authed_user():
                 return self._send({"error": "unauthorized"}, 401)
@@ -431,6 +642,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
         body = self._body()
+        if not isinstance(body, dict):
+            body = {}
 
         if path == "/api/v1/setup":
             pw = str(body.get("password") or "")
@@ -487,6 +700,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 cookie=f"devbox_session=; {self._cookie_attrs()}; Max-Age=0",
             )
 
+        if path == "/api/v1/settings":
+            if not self._authed_user():
+                return self._send({"error": "unauthorized"}, 401)
+            error = update_settings(body)
+            if error:
+                return self._send({"error": error}, 400)
+            return self._send(read_settings())
+
+        if path == "/api/v1/password":
+            if not self._authed_user():
+                return self._send({"error": "unauthorized"}, 401)
+            current = str(body.get("currentPassword") or "")
+            password = str(body.get("newPassword") or "")
+            if len(password) < 6:
+                return self._send({"error": "password too short"}, 400)
+            error = change_password(current, password)
+            if error:
+                return self._send({"error": error}, 400)
+            return self._send({"ok": True})
+
         if path.startswith("/api/v1/services/"):
             if not self._authed_user():
                 return self._send({"error": "unauthorized"}, 401)
@@ -527,6 +760,7 @@ def main():
     if not os.path.exists(PASSWORD_HASH_FILE) and not password_locked():
         if persist_password_hash():
             print("devbox: persisted existing user password hash", flush=True)
+    restore_timezone()
     # Bring back applications that were enabled before the container restarted.
     # Everything is autostart=false under supervisord; nginx and dbus come back
     # via their own units (nginx is on by default as the gateway).

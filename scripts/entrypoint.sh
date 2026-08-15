@@ -58,6 +58,24 @@ su -s /bin/bash "$WEB_USER" -c '
 # system gitconfig so a user-level color.ui setting still overrides it.
 git config --system color.ui auto 2>/dev/null || true
 
+# ---- 4a. restore the user's selected timezone ----
+# The launcher stores only an IANA timezone name. Reapply it to the container
+# clock so new shells and services inherit the setting after a restart.
+TIMEZONE_FILE=/workspace/.devbox/timezone
+if [ -r "$TIMEZONE_FILE" ]; then
+  IFS= read -r timezone < "$TIMEZONE_FILE" || true
+  timezone_path="$(readlink -f -- "/usr/share/zoneinfo/$timezone" 2>/dev/null || true)"
+  case "$timezone_path" in
+    /usr/share/zoneinfo/*)
+      if [ -f "$timezone_path" ]; then
+        rm -f /etc/localtime
+        ln -s "$timezone_path" /etc/localtime
+        printf '%s\n' "$timezone" > /etc/timezone
+      fi
+      ;;
+  esac
+fi
+
 # ---- 4b. OpenCode out-of-the-box config ----
 # Seeded once into the user's global OpenCode config. Written only when neither
 # opencode.jsonc nor opencode.json exists, so a config the user has edited (or
