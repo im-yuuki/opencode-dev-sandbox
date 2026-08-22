@@ -49,8 +49,8 @@ is missing.
   `iperf3`, `nmap`, `tcpdump`, and `cloudflared`. Some low-level network operations still need
   capabilities from the container runtime.
 - Google Chrome is available through `/usr/local/bin/google-chrome-stable`. The wrapper probes
-  user-namespace support and adapts Chrome when the runtime blocks it. `code-server` is available
-  through `/usr/local/bin/code-server`.
+  user-namespace support and adds `--no-sandbox` only when the runtime blocks it; all other
+  arguments pass through unchanged. `code-server` is available through `/usr/local/bin/code-server`.
 - No C or C++ compiler and no CMake are intentionally installed in the base image. Use Nix for
   those and for other packages not already provided.
 

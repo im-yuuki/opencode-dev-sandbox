@@ -158,8 +158,9 @@ profile blocks that operation, so the quick start uses `seccomp=unconfined`. The
 receives no host devices, host namespaces, host socket, or host-level capabilities.
 
 At boot the image probes `unshare -Ur`. If it is unavailable, Chrome starts with `--no-sandbox`
-rather than failing silently. This reduces browser defense in depth; use the quick-start setting
-when the desktop browser is exposed to untrusted web content.
+rather than failing silently. The wrapper passes every other argument through unchanged. This
+reduces browser defense in depth; use the quick-start setting when the desktop browser is exposed
+to untrusted web content.
 
 If the probe fails despite the seccomp setting, the host may disallow unprivileged user
 namespaces:

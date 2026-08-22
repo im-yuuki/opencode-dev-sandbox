@@ -22,6 +22,7 @@ the boundary it defends is the container, not the processes inside it.
 - **Do not expose the container to an untrusted network.** Treat the published ports the way you
   would treat an SSH port into your workstation.
 - **Chrome's sandbox depends on the runtime.** It needs unprivileged user namespaces from the host
-  and container runtime; see [usage.md](usage.md#chrome-sandbox).
+  and container runtime; if unavailable, the wrapper adds `--no-sandbox`. See
+  [usage.md](usage.md#chrome-sandbox).
 
 See also [usage.md](usage.md) for sudo policy and the [README](../README.md) quick start.
