@@ -4,7 +4,6 @@
   // rewrites it afterwards, so edits made in the container survive a restart
   // and an image upgrade.
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-background-agents@latest", "opencode-pty@latest"],
   "mcp": {
     "context7": {
       "type": "local",
