@@ -126,9 +126,10 @@ RUN set -eux; \
 # OpenCode's out-of-the-box config and the DevBox skill are seeded per-workspace
 # by the entrypoint from /etc/devbox/, not baked into the workspace volume.
 RUN --mount=type=cache,target=/workspace/.npm,uid=1000,gid=1000,sharing=locked \
-    set -eux; \
+    set -euxo pipefail; \
     su -s /bin/bash user -c 'HOME=/workspace npm install -g --prefix /opt/devbox/npm-global --no-audit --no-fund @openchamber/web'; \
     su -s /bin/bash user -c 'HOME=/opt/devbox/user-seed curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path'; \
+    test -x /opt/devbox/user-seed/.opencode/bin/opencode; \
     rm -rf /tmp/*
 
 # ============ code-server ============

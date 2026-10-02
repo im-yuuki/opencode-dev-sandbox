@@ -72,12 +72,13 @@ if [ ! -x /workspace/.opencode/bin/opencode ] && [ -d "$OPENCODE_SEED" ]; then
   chown -R "$WEB_USER:$WEB_USER" /workspace/.opencode
   echo "devbox: seeded user-local OpenCode v2 binary"
 fi
-# Workspaces created by an older image may still carry the npm-installed
-# `opencode-ai` package. It is superseded by the v2 binary above, so remove
-# its files once the v2 binary is in place. OpenChamber's files are untouched.
-if [ -x /workspace/.opencode/bin/opencode ] && [ -d "$USER_LOCAL/lib/node_modules/opencode-ai" ]; then
-  rm -rf "$USER_LOCAL/lib/node_modules/opencode-ai" "$USER_LOCAL/bin/opencode" "$USER_LOCAL/bin/opencode2"
-  echo "devbox: removed legacy npm-installed opencode-ai"
+if [ ! -x /workspace/.opencode/bin/opencode ]; then
+  # No seed in the image (e.g. a broken build) and no binary on the volume:
+  # OpenChamber cannot start without the CLI. Say so loudly with the fix
+  # instead of leaving a crash-loop to be diagnosed from supervisor logs.
+  echo "devbox: ERROR: missing /workspace/.opencode/bin/opencode and no image seed at $OPENCODE_SEED." >&2
+  echo "devbox: ERROR: install it manually, then start the Agent app from the Launcher:" >&2
+  echo "devbox: ERROR:   docker exec -u user <container> devbox-user-env bash -c 'curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path'" >&2
 fi
 
 # ---- 4. managed shell setup ----

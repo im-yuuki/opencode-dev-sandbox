@@ -22,12 +22,11 @@ export OPENCHAMBER_PACKAGE_MANAGER=npm
 export NIX_STATE_HOME=/nix/var/nix/user-state
 export NIX_CACHE_HOME=/nix/var/nix/user-cache
 
-# User-local binaries must win over any package left by an older image.
-# OpenCode v2 (standalone binary) in ~/.opencode/bin comes before OpenChamber
-# (npm) in ~/.local/bin so a legacy npm-installed `opencode-ai` shim from a
-# previous image never shadows the v2 binary. Nix follows so
-# `nix profile install` still shadows Debian packages, then the system
-# directories. No sbin: these services never need root utilities.
+# User-local binaries must win over any package left by an older image:
+# OpenCode v2 (standalone binary) in ~/.opencode/bin, OpenChamber (npm) in
+# ~/.local/bin. Nix follows so `nix profile install` still shadows Debian
+# packages, then the system directories. No sbin: these services never need
+# root utilities.
 PATH=/workspace/.opencode/bin:/workspace/.local/bin:/nix/var/nix/user-state/profiles/profile/bin:/usr/local/bin:/usr/bin:/bin
 export PATH
 
