@@ -1,7 +1,7 @@
 #!/bin/sh
 # Wrapper that gives a user-facing service the single-user Nix environment
 # before exec'ing it. Used by the supervisor programs that run as uid 1000
-# (openchamber, code-server, vnc, websockify, filebrowser, cliproxyapi).
+# (openchamber, code-server, vnc, websockify, filebrowser).
 #
 # HOME is /workspace, which is the persistent volume, but /nix is *not*: it
 # lives in the container writable layer. Leaving Nix state under HOME would
@@ -22,10 +22,13 @@ export OPENCHAMBER_PACKAGE_MANAGER=npm
 export NIX_STATE_HOME=/nix/var/nix/user-state
 export NIX_CACHE_HOME=/nix/var/nix/user-cache
 
-# User-local npm binaries must win over any package left by an older image.
-# Nix follows so `nix profile install` still shadows Debian packages, then the
-# system directories. No sbin: these services never need root utilities.
-PATH=/workspace/.local/bin:/nix/var/nix/user-state/profiles/profile/bin:/usr/local/bin:/usr/bin:/bin
+# User-local binaries must win over any package left by an older image.
+# OpenCode v2 (standalone binary) in ~/.opencode/bin comes before OpenChamber
+# (npm) in ~/.local/bin so a legacy npm-installed `opencode-ai` shim from a
+# previous image never shadows the v2 binary. Nix follows so
+# `nix profile install` still shadows Debian packages, then the system
+# directories. No sbin: these services never need root utilities.
+PATH=/workspace/.opencode/bin:/workspace/.local/bin:/nix/var/nix/user-state/profiles/profile/bin:/usr/local/bin:/usr/bin:/bin
 export PATH
 
 exec "$@"

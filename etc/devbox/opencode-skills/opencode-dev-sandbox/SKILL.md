@@ -14,6 +14,8 @@ network exposure all follow the image rules below.
 
 - The final image is based on `debian:trixie-slim` and is published for `linux/amd64` and
   `linux/arm64`. The default locale is `C.UTF-8` and the default timezone is `Etc/UTC`.
+  The in-sandbox hostname is `devbox` (`DEVBOX_HOSTNAME` overrides; explicit
+  `docker run --hostname` wins).
 - Work in `/workspace`. It is both the working directory and the home directory of the runtime
   account `user` (uid 1000). The `/workspace` volume persists source code and user configuration.
 - The normal agent and desktop applications run as `user`. Root-only infrastructure includes
@@ -33,9 +35,10 @@ network exposure all follow the image rules below.
 The image already contains the following tools. Check `command -v <tool>` before assuming a tool
 is missing.
 
-- OpenCode is installed as the uid-1000 user-local `opencode`; OpenChamber is installed as the
-  uid-1000 user-local `openchamber` and provides the browser agent UI. Their npm prefix is
-  `/workspace/.local`, which is writable by the runtime account and is first on the managed PATH.
+- OpenCode v2 is installed as the uid-1000 user-local `opencode` binary
+  (`~/.opencode/bin`, seeded from the upstream v2 installer); OpenChamber is installed as the
+  uid-1000 user-local `openchamber` npm package (prefix `/workspace/.local`). Both bin
+  directories are writable by the runtime account and come first on the managed PATH.
 - Node.js LTS and npm are installed globally. Python 3 includes `pip`, `venv`, `aiohttp`, and
   `pamela`.
 - Git, GNU core utilities, Bash completion, `less`, `file`, `tree`, `find`, `grep`, `sed`, `gawk`,
@@ -115,12 +118,9 @@ Supervisor programs have `autostart=false`; enabled applications are remembered 
 | noVNC and websockify | `127.0.0.1:9103` | `/vnc/` |
 | FileBrowser Quantum | `127.0.0.1:9104` | `/files/` |
 | Persistent terminal broker | `127.0.0.1:9105` | `/terminal/api/` and `/terminal/ws/` |
-| CLIProxyAPI | `127.0.0.1:8317` | Management routes only; `/v1/` stays internal |
 
 The web terminal uses tmux sessions. Disconnecting a browser tab detaches from a session; it does
-not stop the shell or its commands. Container recreation still ends those processes. The CLI proxy
-endpoint used by OpenCode is `http://127.0.0.1:8317/v1`. Provider accounts and proxy keys must be
-configured in the CLIProxyAPI Management Center before model calls can work.
+not stop the shell or its commands. Container recreation still ends those processes.
 
 The global OpenCode config is seeded once at `~/.config/opencode/opencode.jsonc`, which resolves to
 `/workspace/.config/opencode/opencode.jsonc` for this account. It enables LSP, web/code search, the
@@ -147,10 +147,7 @@ service's own log before changing the image.
 3. Prefer the tools already shipped in the image. Use Nix for missing project packages, and keep
    the package declaration with the project when reproducibility matters.
 4. Keep service configuration loopback-only unless the task explicitly requires a gateway route.
-   Never expose the CLI proxy's `/v1/` endpoint or the internal service ports through a new public
-   listener.
-5. Treat `/workspace/.devbox` as sensitive. It contains the CLI proxy management key, provider
-   credentials, proxy keys, FileBrowser state, and the TLS private key. Do not print or commit
+5. Treat `/workspace/.devbox` as sensitive. It contains FileBrowser state and the TLS private key. Do not print or commit
    those files.
 6. Use the Launcher for normal service lifecycle operations. If a root-level diagnosis is needed,
    inspect Supervisor with `sudo supervisorctl -c /etc/supervisor/supervisord.conf status` after
@@ -167,7 +164,7 @@ sudo supervisorctl -c /etc/supervisor/supervisord.conf status
 ```
 
 The user-facing program names are `openchamber`, `code-server`, `filebrowser`, `vnc`,
-`websockify`, `web-terminal`, and `cliproxyapi`. Start or stop them from the Launcher when possible;
+`websockify` and `web-terminal`. Start or stop them from the Launcher when possible;
 the Supervisor socket is root-only.
 
 ### A Nix-installed command is not found
@@ -207,7 +204,7 @@ the `vnc`, `websockify`, and `code-server` Supervisor logs and confirm that `/ru
 ### A port is already in use
 
 Keep development servers on ordinary project ports such as 3000, 5173, or 8080. Do not bind to
-9100-9105 or 8317, which belong to the image services. Only publish host ports for nginx 80 and 443.
+9100-9105, which belong to the image services. Only publish host ports for nginx 80 and 443.
 
 ### A package disappears after rebuilding the container
 

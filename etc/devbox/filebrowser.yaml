@@ -44,10 +44,9 @@ frontend:
 
 userDefaults:
   listing:
-    # Dotfiles hidden by default so .devbox (TLS key, CLIProxy management key,
-    # OAuth tokens) does not show up unprompted. A view-level default only: the
+    # Dotfiles hidden by default so .devbox does not show up unprompted. A view-level default only: the
     # user can toggle it in the UI, and this is not a security boundary --
-    # FileBrowser, the agent and CLIProxyAPI all run as uid 1000 and can read
+    # FileBrowser and the agent all run as uid 1000 and can read
     # those files regardless. Source-level ignore rules are deliberately not
     # used, since those would also drop .git and friends from the search index.
     showHidden: false

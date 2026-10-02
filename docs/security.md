@@ -3,14 +3,13 @@
 This is a **trusted single-user development environment**. It is not a multi-tenant sandbox, and
 the boundary it defends is the container, not the processes inside it.
 
-- **One uid for everything.** Agent, desktop, code-server, FileBrowser and CLIProxyAPI all run as
+- **One uid for everything.** Agent, desktop, code-server and FileBrowser all run as
   uid 1000. They are not isolated from each other: any one of them can read, modify or kill the
   others' files and processes.
 - **Web terminal sessions share that boundary.** The terminal broker runs as uid 1000 and starts
   private tmux sessions. Session IDs are not a multi-user security boundary; processes already
   running as uid 1000 can inspect or terminate them.
-- **Shared secrets on the volume.** `/workspace/.devbox` holds the CLIProxy management key,
-  provider OAuth tokens, proxy API keys, the FileBrowser database and the Unix password hash.
+- **Shared secrets on the volume.** `/workspace/.devbox` holds the FileBrowser database and the Unix password hash.
   The hash is stored without the plaintext password. Directory modes are
   restrictive against *other* accounts, but everything running as uid 1000 can read them. The TLS
   private key is the one exception: root-owned `0600`, since only nginx needs it. Hiding dotfiles

@@ -69,10 +69,6 @@ APPS = {
         [("vnc", "Xvnc + LXQt"), ("websockify", "noVNC bridge")],
     ),
     "code": ("Code", [("code-server", "VS Code web")]),
-    "cliproxy": (
-        "CLI Proxy",
-        [("cliproxyapi", "CLIProxyAPI + Management Center")],
-    ),
     "terminal": ("Terminal", [("web-terminal", "Persistent tmux web terminal")]),
 }
 ACTIONS = {"start", "stop", "restart"}
@@ -623,20 +619,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self._authed_user():
                 return self._send({"error": "unauthorized"}, 401)
             return self._metrics_stream()
-        if path == "/api/v1/cliproxy-key":
-            # The launcher bootstrap page uses GET to retrieve the key after
-            # the opencode-dev-sanbox session has authenticated. Keep this endpoint behind
-            # the same PAM-backed session gate as the rest of the control API.
-            if not self._authed_user():
-                return self._send({"error": "unauthorized"}, 401)
-            try:
-                with open(
-                    "/workspace/.devbox/cliproxy/management.key",
-                    encoding="ascii",
-                ) as f:
-                    return self._send({"key": f.read().strip()})
-            except OSError:
-                return self._send({"error": "no management key yet"}, 404)
         return self._plain("not found", 404)
 
     def do_POST(self):

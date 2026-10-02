@@ -101,6 +101,11 @@ if [ "$(id -u)" -eq 1000 ] && [ -d /nix ]; then
     *":$HOME/.local/bin:"*) ;;
     *) PATH="$HOME/.local/bin:$PATH"; export PATH ;;
   esac
+  # OpenCode v2 is a standalone binary, not an npm package.
+  case ":$PATH:" in
+    *":$HOME/.opencode/bin:"*) ;;
+    *) PATH="$HOME/.opencode/bin:$PATH"; export PATH ;;
+  esac
 
   export NIX_STATE_HOME=/nix/var/nix/user-state
   export NIX_CACHE_HOME=/nix/var/nix/user-cache

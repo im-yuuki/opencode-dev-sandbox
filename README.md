@@ -25,13 +25,13 @@ self-signed HTTPS, one login.
 ## Quick start
 
 ```bash
-docker run -d --security-opt seccomp=unconfined --restart=unless-stopped --pull always --tmpfs /tmp --shm-size=1g -p 127.0.0.1:8080:80/tcp -p 127.0.0.1:8443:443/tcp --name devbox -v devbox-workspace:/workspace ghcr.io/im-yuuki/opencode-dev-sandbox:latest
+docker run -d --hostname devbox --security-opt seccomp=unconfined --restart=unless-stopped --pull always --tmpfs /tmp --shm-size=1g -p 127.0.0.1:8080:80/tcp -p 127.0.0.1:8443:443/tcp --name devbox -v devbox-workspace:/workspace ghcr.io/im-yuuki/opencode-dev-sandbox:latest
 ```
 
 Docker Hub mirror:
 
 ```bash
-docker run -d --security-opt seccomp=unconfined --restart=unless-stopped --pull always --tmpfs /tmp --shm-size=1g -p 127.0.0.1:8080:80/tcp -p 127.0.0.1:8443:443/tcp --name devbox -v devbox-workspace:/workspace imyuuki/opencode-dev-sandbox:latest
+docker run -d --hostname devbox --security-opt seccomp=unconfined --restart=unless-stopped --pull always --tmpfs /tmp --shm-size=1g -p 127.0.0.1:8080:80/tcp -p 127.0.0.1:8443:443/tcp --name devbox -v devbox-workspace:/workspace imyuuki/opencode-dev-sandbox:latest
 ```
 
 Then open either **<http://localhost:8080/launcher/>** or **<https://localhost:8443/launcher/>**.
@@ -40,6 +40,9 @@ Then open either **<http://localhost:8080/launcher/>** or **<https://localhost:8
 - First visit shows a password-setup form. Pick your password; that becomes your login **and** the
   Unix password of the `user` account, so `sudo` uses it too.
 - Any free host ports work, for example `-p 12345:80 -p 12346:443`.
+- `--hostname devbox` pins the in-sandbox hostname. Without it Docker assigns the
+  container ID as hostname; the entrypoint still replaces a random-looking ID with
+  `devbox` on a best-effort basis (`-e DEVBOX_HOSTNAME=foo` overrides).
 - `linux/amd64` and `linux/arm64` images are published.
 - Existing-container upgrades and password migration are documented in
   [Migration guide](docs/migration.md).
@@ -101,7 +104,6 @@ profile and state directories the apps use. A plain `su - user` works too, but a
 | <img src="https://cdn.simpleicons.org/coder/000000/FFFFFF" height="20" /> | [code-server](https://github.com/coder/code-server) | VS Code in the browser |
 | <img src="https://cdn.simpleicons.org/qt/41CD52" height="20" /> | [LXQt](https://lxqt-project.org) | Desktop (Openbox), PCManFM-Qt, QTerminal, FeatherPad, LXQt Configuration Center |
 | <img src="https://cdn.simpleicons.org/files/4285F4" height="20" /> | [FileBrowser Quantum](https://github.com/gtsteffaniak/filebrowser) | Web file manager |
-| <img src="https://cdn.simpleicons.org/github/181717/FFFFFF" height="20" /> | [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) + [Management Center](https://github.com/router-for-me/Cli-Proxy-API-Management-Center) | OpenAI-compatible proxy for provider accounts |
 | <img src="https://cdn.simpleicons.org/googlechrome/4285F4" height="20" /> | [Google Chrome](https://www.google.com/chrome/) | Browser on the desktop, with its own sandbox |
 | <img src="https://cdn.simpleicons.org/xdotorg/F28834" height="20" /> | [TigerVNC + noVNC](https://novnc.com) | Desktop streaming |
 | <img src="https://cdn.simpleicons.org/nginx/009639" height="20" /> | [nginx](https://nginx.org) | HTTPS gateway |
@@ -147,7 +149,7 @@ footer.
 
 ## Documentation
 
-- [Usage notes](docs/usage.md) — sudo, Nix, CLI proxy, OpenCode configuration, TLS, Chrome
+- [Usage notes](docs/usage.md) — sudo, Nix, OpenCode configuration, TLS, Chrome
   sandbox, ports.
 - [Security model](docs/security.md) — trust boundary, secrets, what not to expose.
 

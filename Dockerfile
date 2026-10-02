@@ -69,7 +69,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # ---- service infrastructure ----
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    set -eux; apt-get update; apt-get install -y --no-install-recommends supervisor nginx openssl dbus dbus-x11 locales tzdata sudo git nix-bin
+    set -eux; apt-get update; apt-get install -y --no-install-recommends supervisor nginx openssl dbus dbus-x11 locales tzdata sudo git nix-bin hostname
 
 # ---- shell and filesystem tools ----
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -112,17 +112,23 @@ RUN set -eux; \
     useradd -m -u 1000 -G sudo -s /bin/bash user; \
     mkdir -p /workspace; \
     chown user:user /workspace; \
-    install -d -o user -g user -m 0755 /opt/devbox/npm-global
+    install -d -o user -g user -m 0755 /opt/devbox/npm-global; \
+    install -d -o user -g user -m 0755 /opt/devbox/user-seed
 
-# ============ user Node packages ============
+# ============ user packages: OpenChamber (npm) + OpenCode v2 (binary) ============
 # OpenChamber ships @openchamber/web on npm, so it is installed from the
 # registry rather than by piping install.sh from the main branch through bash.
 # Install as uid 1000 using the same npm global layout that runtime updates use.
+# OpenCode v2 is a standalone binary installed with the upstream installer
+# (https://opencode.ai/v2/install) into a seed home outside the volume; the
+# entrypoint copies it to /workspace/.opencode on first boot so the binary
+# itself lives on the persistent volume and self-updates without root.
 # OpenCode's out-of-the-box config and the DevBox skill are seeded per-workspace
 # by the entrypoint from /etc/devbox/, not baked into the workspace volume.
 RUN --mount=type=cache,target=/workspace/.npm,uid=1000,gid=1000,sharing=locked \
     set -eux; \
-    su -s /bin/bash user -c 'HOME=/workspace npm install -g --prefix /opt/devbox/npm-global --no-audit --no-fund opencode-ai @openchamber/web'; \
+    su -s /bin/bash user -c 'HOME=/workspace npm install -g --prefix /opt/devbox/npm-global --no-audit --no-fund @openchamber/web'; \
+    su -s /bin/bash user -c 'HOME=/opt/devbox/user-seed curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path'; \
     rm -rf /tmp/*
 
 # ============ code-server ============
@@ -131,12 +137,6 @@ RUN set -eux; arch="$(dpkg --print-architecture)"; ver="$(curl -fsSL https://api
 # ============ FileBrowser Quantum ============
 # gtsteffaniak/filebrowser, Apache-2.0.
 RUN set -eux; arch="$(dpkg --print-architecture)"; curl -fsSL -o /usr/local/bin/filebrowser "https://github.com/gtsteffaniak/filebrowser/releases/latest/download/linux-${arch}-filebrowser"; chmod 0755 /usr/local/bin/filebrowser
-
-# ============ CLIProxyAPI + Management Center ============
-# MIT. The default (glibc/plugin) build is fine: trixie is well past the
-# GLIBC 2.17 baseline. Upstream names the 64-bit ARM archive aarch64, not arm64.
-# The panel asset is baked in so the proxy never has to fetch it at runtime.
-RUN set -eux; case "$(dpkg --print-architecture)" in amd64) arch=amd64 ;; arm64) arch=aarch64 ;; *) echo "unsupported architecture" >&2; exit 1 ;; esac; ver="$(curl -fsSL https://api.github.com/repos/router-for-me/CLIProxyAPI/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"; test -n "$ver"; aria2c $ARIA2_OPTS -o /tmp/cliproxy.tar.gz "https://github.com/router-for-me/CLIProxyAPI/releases/download/v${ver}/CLIProxyAPI_${ver}_linux_${arch}.tar.gz"; mkdir -p /tmp/cliproxy; tar -xzf /tmp/cliproxy.tar.gz -C /tmp/cliproxy cli-proxy-api; install -D -m 0755 /tmp/cliproxy/cli-proxy-api /usr/local/bin/cliproxyapi; install -d -m 0755 /opt/cliproxy/static; curl -fsSL -o /opt/cliproxy/static/management.html "https://github.com/router-for-me/Cli-Proxy-API-Management-Center/releases/latest/download/management.html"; chmod 0644 /opt/cliproxy/static/management.html; rm -rf /tmp/cliproxy /tmp/cliproxy.tar.gz
 
 # ============ Nix (single-user) ============
 # Store owned by uid 1000 so the agent installs packages without sudo. No
@@ -163,7 +163,6 @@ COPY etc/novnc/mandatory.json /usr/share/novnc/mandatory.json
 # Give the deployment policy a new URL once, then nginx marks it no-store.
 RUN sed -i "s|fetch('./mandatory.json')|fetch('./mandatory.json?v=devbox-resize-v2')|" /usr/share/novnc/vnc.html /usr/share/novnc/vnc_auto.html && grep -q "mandatory.json?v=devbox-resize-v2" /usr/share/novnc/vnc.html && grep -q "mandatory.json?v=devbox-resize-v2" /usr/share/novnc/vnc_auto.html
 COPY etc/devbox/xstartup /usr/share/devbox/xstartup
-COPY etc/devbox/mc-boot.html /var/www/launcher/mc-boot.html
 COPY scripts/entrypoint.sh /usr/local/sbin/entrypoint.sh
 COPY scripts/vnc-run.sh /usr/local/sbin/vnc-run.sh
 COPY scripts/google-chrome-stable /usr/local/bin/google-chrome-stable

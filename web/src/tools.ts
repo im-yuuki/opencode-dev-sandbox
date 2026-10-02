@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Braces, Cable, FolderOpen, MonitorPlay, Network, Terminal as TerminalIcon } from "lucide-react";
+import { Braces, Cable, FolderOpen, MonitorPlay, Terminal as TerminalIcon } from "lucide-react";
 
 // Application metadata, keyed by the control plane's app ids. Every app
 // starts and stops from the dashboard; `url` is where "Open in New Tab" goes,
@@ -40,13 +40,6 @@ export const TOOLS: Record<string, ToolDef> = {
     description: "Browser code editor (code-server) on /workspace.",
     icon: Braces,
     url: "/code/",
-  },
-  cliproxy: {
-    id: "cliproxy",
-    name: "CLI Proxy",
-    description: "CLIProxyAPI + Management Center: providers, keys, routing.",
-    icon: Network,
-    url: "/launcher/mc-boot.html",
   },
   terminal: {
     id: "terminal",

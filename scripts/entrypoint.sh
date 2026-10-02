@@ -6,6 +6,35 @@ set -e
 # supervisor programs and /run/user/1000 all assume this account.
 WEB_USER=user
 
+# ---- 0. stable hostname ----
+# Docker defaults the hostname to the 12-hex container ID, which changes on
+# every recreate and leaks into prompts, logs and the TLS certificate. An
+# explicit `docker run --hostname` choice always wins; otherwise an explicit
+# -e DEVBOX_HOSTNAME is applied, else a random-looking ID becomes `devbox`.
+# sethostname needs CAP_SYS_ADMIN, so without the daemon flag this is
+# best-effort: /etc/hosts and $HOSTNAME are still normalized below.
+HOSTNAME_CURRENT="$(hostname 2>/dev/null || echo container)"
+HOSTNAME_TARGET=""
+if [ -n "${DEVBOX_HOSTNAME:-}" ]; then
+  HOSTNAME_TARGET="$DEVBOX_HOSTNAME"
+elif [[ "$HOSTNAME_CURRENT" =~ ^[0-9a-f]{12}$ ]]; then
+  HOSTNAME_TARGET="devbox"
+fi
+if [[ "$HOSTNAME_TARGET" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]]; then
+  if hostname "$HOSTNAME_TARGET" 2>/dev/null; then
+    echo "devbox: hostname set to $HOSTNAME_TARGET"
+  else
+    echo "devbox: warning: cannot set hostname to '$HOSTNAME_TARGET' (missing CAP_SYS_ADMIN? use docker run --hostname); keeping '$HOSTNAME_CURRENT'" >&2
+  fi
+  # Keep `sudo` quiet ("unable to resolve host") however the name was applied.
+  if ! grep -qwF "$HOSTNAME_TARGET" /etc/hosts 2>/dev/null; then
+    echo "127.0.0.1 $HOSTNAME_TARGET" >> /etc/hosts 2>/dev/null || true
+  fi
+  export HOSTNAME="$HOSTNAME_TARGET"
+elif [ -n "$HOSTNAME_TARGET" ]; then
+  echo "devbox: warning: ignoring invalid DEVBOX_HOSTNAME='$HOSTNAME_TARGET'" >&2
+fi
+
 # ---- 1. ensure user + home ----
 # Member of the sudo group, but with no sudoers drop-in: escalation uses the
 # real /usr/bin/sudo and the Unix password the user sets on first visit through
@@ -20,20 +49,35 @@ usermod -d /workspace "$WEB_USER" 2>/dev/null || true
 mkdir -p /workspace
 chown "$WEB_USER:$WEB_USER" /workspace
 
-# ---- 3. user-local Node package seed ----
-# The image keeps a uid-1000 npm install outside the volume so a pre-existing
-# workspace can be upgraded without requiring network access during boot. Once
-# copied, npm updates write directly to /workspace/.local and this seed never
-# overwrites them.
+# ---- 3. user-local package seeds ----
+# The image keeps uid-1000 installs outside the volume so a pre-existing
+# workspace can be upgraded without requiring network access during boot.
+# OpenChamber (npm) is copied to /workspace/.local; OpenCode v2 (standalone
+# binary) is copied to /workspace/.opencode. Once copied, updates write
+# directly to the volume paths and these seeds never overwrite them.
 USER_LOCAL=/workspace/.local
 NODE_GLOBAL_SEED=/opt/devbox/npm-global
-if [ ! -x "$USER_LOCAL/bin/opencode" ] || [ ! -x "$USER_LOCAL/bin/openchamber" ]; then
+if [ ! -x "$USER_LOCAL/bin/openchamber" ]; then
   install -d -o "$WEB_USER" -g "$WEB_USER" -m 0755 "$USER_LOCAL"
   if [ -d "$NODE_GLOBAL_SEED" ]; then
     rsync -a --ignore-existing "$NODE_GLOBAL_SEED/" "$USER_LOCAL/"
     chown -R "$WEB_USER:$WEB_USER" "$USER_LOCAL"
-    echo "devbox: seeded user-local OpenCode/OpenChamber packages"
+    echo "devbox: seeded user-local OpenChamber package"
   fi
+fi
+OPENCODE_SEED=/opt/devbox/user-seed/.opencode
+if [ ! -x /workspace/.opencode/bin/opencode ] && [ -d "$OPENCODE_SEED" ]; then
+  install -d -o "$WEB_USER" -g "$WEB_USER" -m 0755 /workspace/.opencode
+  rsync -a --ignore-existing "$OPENCODE_SEED/" /workspace/.opencode/
+  chown -R "$WEB_USER:$WEB_USER" /workspace/.opencode
+  echo "devbox: seeded user-local OpenCode v2 binary"
+fi
+# Workspaces created by an older image may still carry the npm-installed
+# `opencode-ai` package. It is superseded by the v2 binary above, so remove
+# its files once the v2 binary is in place. OpenChamber's files are untouched.
+if [ -x /workspace/.opencode/bin/opencode ] && [ -d "$USER_LOCAL/lib/node_modules/opencode-ai" ]; then
+  rm -rf "$USER_LOCAL/lib/node_modules/opencode-ai" "$USER_LOCAL/bin/opencode" "$USER_LOCAL/bin/opencode2"
+  echo "devbox: removed legacy npm-installed opencode-ai"
 fi
 
 # ---- 4. managed shell setup ----
@@ -208,41 +252,6 @@ if [ -e "$FB_DIR/database.db" ]; then
   chown "$WEB_USER:$WEB_USER" "$FB_DIR/database.db"
 fi
 
-# ---- 7. CLIProxyAPI state ----
-# 0700 throughout: this tree holds the management key, provider OAuth tokens
-# and any proxy API keys the user mints from the panel.
-CP_DIR=/workspace/.devbox/cliproxy
-CP_KEY="$CP_DIR/management.key"
-install -d -o "$WEB_USER" -g "$WEB_USER" -m 700 "$CP_DIR"
-install -d -o "$WEB_USER" -g "$WEB_USER" -m 700 "$CP_DIR/auth"
-install -d -o "$WEB_USER" -g "$WEB_USER" -m 700 "$CP_DIR/logs"
-install -d -o "$WEB_USER" -g "$WEB_USER" -m 700 "$CP_DIR/plugins"
-
-if [ ! -s "$CP_KEY" ]; then
-  # 32 bytes from the kernel CSPRNG, base64url so it pastes cleanly into the
-  # panel's login field.
-  (umask 077; openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' > "$CP_KEY")
-  chown "$WEB_USER:$WEB_USER" "$CP_KEY"
-  echo "devbox: generated CLIProxyAPI management key"
-fi
-chmod 600 "$CP_KEY"
-
-# Seeded only when no config exists at all. CLIProxyAPI bcrypt-hashes the key
-# and rewrites this file on startup, and the Management Center stores provider
-# credentials in it, so re-seeding would destroy both.
-if [ ! -f "$CP_DIR/config.yaml" ]; then
-  cp_tmp="$CP_DIR/config.yaml.devbox-new"
-  # awk on a fixed placeholder: a key containing sed delimiters or regex
-  # metacharacters cannot corrupt the output.
-  (umask 077; awk -v key="$(cat "$CP_KEY")" \
-    '{ gsub(/__DEVBOX_MANAGEMENT_KEY__/, key); print }' \
-    /etc/devbox/cliproxy.yaml > "$cp_tmp")
-  chown "$WEB_USER:$WEB_USER" "$cp_tmp"
-  chmod 600 "$cp_tmp"
-  mv "$cp_tmp" "$CP_DIR/config.yaml"
-  echo "devbox: seeded CLIProxyAPI config"
-fi
-
 # ---- 8. persisted Unix password ----
 # The web setup stores only the system shadow hash, never the plaintext
 # password. Restore it before supervisord starts so a recreated container keeps
@@ -261,10 +270,6 @@ if [ -s "$PASSWORD_HASH_FILE" ]; then
   fi
 fi
 
-# Tighten existing auth tokens without touching their contents, in case they
-# were written by an older image with a laxer umask.
-find "$CP_DIR/auth" -type f -exec chmod 600 {} + 2>/dev/null || true
-
 # ---- 8. TLS: self-signed cert, generated once on first run ----
 # Lives on the /workspace volume so the browser's trust exception survives a
 # container rebuild; delete the directory to force a new pair. The key stays
@@ -276,9 +281,15 @@ TLS_KEY="$TLS_DIR/devbox.key"
 
 if [ ! -s "$TLS_CRT" ] || [ ! -s "$TLS_KEY" ]; then
   mkdir -p "$TLS_DIR"
-  # SANs: the names a browser can actually reach the box by. TLS_SAN adds extra
+  # SANs: the names a browser can actually reach the box by. DNS:devbox is the
+  # stable in-sandbox hostname (see section 0); the live kernel name is added
+  # too so a custom `docker run --hostname` stays covered. TLS_SAN adds extra
   # comma-separated entries (e.g. TLS_SAN="DNS:devbox.lan,IP:192.168.1.10").
-  san="DNS:localhost,DNS:$(hostname),IP:127.0.0.1,IP:0:0:0:0:0:0:0:1"
+  san="DNS:localhost,DNS:devbox,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1"
+  case ",$san," in
+    *",DNS:$(hostname),"*) ;;
+    *) san="DNS:$(hostname),$san" ;;
+  esac
   [ -n "${TLS_SAN:-}" ] && san="$san,$TLS_SAN"
   openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
     -keyout "$TLS_KEY" -out "$TLS_CRT" \

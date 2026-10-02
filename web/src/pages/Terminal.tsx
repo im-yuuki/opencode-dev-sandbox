@@ -296,8 +296,8 @@ export function TerminalPage() {
   const state = activeId ? (states[activeId] ?? "connecting") : "closed";
 
   return (
-    <div className="flex h-screen min-h-0 flex-col bg-zinc-950 text-zinc-100">
-      <header className="flex flex-wrap items-center gap-2 border-b border-zinc-800 bg-zinc-900 px-3 py-2">
+    <div className="flex h-screen min-h-0 flex-col bg-background text-foreground">
+      <header className="flex flex-wrap items-center gap-2 border-b border-divider bg-background px-3 py-2">
         <Link
           href="/launcher/"
           aria-label="Open the Dashboard"
@@ -312,7 +312,7 @@ export function TerminalPage() {
           {sessions.map((session) => (
             <div
               key={session.id}
-              className={`flex shrink-0 items-center rounded-md ${activeId === session.id ? "bg-zinc-700" : "bg-zinc-800/70"}`}>
+              className={`flex shrink-0 items-center rounded-md border border-divider ${activeId === session.id ? "bg-foreground/10" : "bg-foreground/5"}`}>
               <button
                 type="button"
                 role="tab"
@@ -327,7 +327,7 @@ export function TerminalPage() {
               <button
                 type="button"
                 onClick={() => detach(session.id)}
-                className="px-1.5 text-zinc-400 hover:text-white"
+                className="px-1.5 text-muted hover:text-foreground"
                 aria-label={`Detach ${session.title}`}
                 title="Detach tab; session keeps running">
                 <X size={14} />
@@ -351,14 +351,14 @@ export function TerminalPage() {
           <RefreshCw size={15} />
         </Button>
       </header>
-      <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
+      <div className="flex items-center gap-2 border-b border-divider px-3 py-2">
         {activeId ? (
           <>
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && void rename()}
-              className="w-48 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm outline-none focus:border-zinc-400"
+              className="w-48 rounded-field border border-field-border bg-field px-2 py-1 text-sm text-field-foreground outline-none focus-visible:ring-2 focus-visible:ring-focus"
               aria-label="Terminal title"
             />
             <Button size="sm" variant="ghost" onPress={() => void rename()}>
@@ -385,7 +385,7 @@ export function TerminalPage() {
           }>
           {state}
         </Chip>
-        <span className="ml-auto text-xs text-zinc-500">
+        <span className="ml-auto text-xs text-muted">
           Closing a tab detaches only. Kill explicitly to stop its processes.
         </span>
       </div>
@@ -396,7 +396,7 @@ export function TerminalPage() {
           </div>
         ) : null}
         {!loading && sessions.length === 0 ? (
-          <div className="grid h-full place-items-center gap-3 text-center text-zinc-400">
+          <div className="grid h-full place-items-center gap-3 text-center text-muted">
             <p>No terminal sessions yet.</p>
             <Button variant="primary" onPress={() => void create()}>
               <Plus size={15} /> Create terminal

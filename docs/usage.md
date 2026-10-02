@@ -1,12 +1,12 @@
 # Usage notes
 
 Detailed operating notes for the opencode-dev-sanbox. The [README](../README.md) covers the quick start; this
-page goes deeper on sudo, Nix, the CLI proxy, the OpenCode config, TLS and Chrome's sandbox.
+page goes deeper on sudo, Nix, the OpenCode config, TLS and Chrome's sandbox.
 
 - [Sudo](#sudo)
 - [Nix](#nix)
-- [CLI Proxy](#cli-proxy)
 - [OpenCode configuration](#opencode-configuration)
+- [Hostname](#hostname)
 - [Custom hostname or LAN address in the certificate](#custom-hostname-or-lan-address-in-the-certificate)
 - [Environment variables](#environment-variables)
 - [Chrome sandbox](#chrome-sandbox)
@@ -64,74 +64,48 @@ rebuild the environment. A per-project flake restores itself; a `nix profile ins
 > Single-user Nix does not sandbox derivations (`sandbox = false`). Builds run with the same uid as
 > the agent. That is fine for your own projects and not appropriate for untrusted derivations.
 
-## User-local Node packages
+## User-local packages
 
-OpenCode and OpenChamber are installed as uid 1000 packages under the persistent workspace prefix:
+OpenChamber is installed as a uid 1000 npm package under the persistent workspace prefix:
 
 ```text
 /workspace/.local/bin
 /workspace/.local/lib/node_modules
 ```
 
-The managed service environment sets `NPM_CONFIG_PREFIX=/workspace/.local` and puts the prefix's
-`bin` directory first on `PATH`. This matches the package manager environment used by the web
-update controls, so updating OpenCode or OpenChamber does not require root or write access to
-`/usr`.
+OpenCode v2 is a standalone binary installed with the upstream installer
+(`curl -fsSL https://opencode.ai/v2/install | bash`) under the persistent
+workspace directory:
 
-The image keeps a user-owned seed outside the workspace and copies it only when either application
-is missing from the volume. Existing user-installed versions are never overwritten. After updating
-OpenChamber from its web UI, restart the **Agent** application from the Launcher to load the new
-server process; the upstream container update flow intentionally keeps the current server online.
-
-## CLI Proxy
-
-CLIProxyAPI brokers provider accounts behind one OpenAI-compatible endpoint, with the upstream
-Management Center panel baked into the image so it is available offline.
-
-1. Launch **CLI Proxy** from the dashboard.
-2. Open **CLI Proxy** from the dashboard — the new tab goes through a small
-   bootstrap page that seeds your already-started opencode-dev-sanbox session into the panel,
-   so there is no second login and no prompt for the management key.
-3. Add providers and create proxy API keys there. None are seeded for you.
-4. Point in-container agents and CLIs at the proxy:
-
-   ```text
-   http://127.0.0.1:8317
-   ```
-
-If you need the management key for anything outside the browser, the entrypoint
-generates it on first start:
-
-```bash
-docker exec -u user devbox sh -c 'cat /workspace/.devbox/cliproxy/management.key'
+```text
+/workspace/.opencode/bin
 ```
 
-Only the panel and its management API are reachable through the gateway. The `/v1/` proxy surface
-is not published, so it stays loopback-only inside the container.
+The managed service environment puts both `bin` directories first on `PATH`.
+OpenCode self-updates into `/workspace/.opencode` and OpenChamber updates through
+its web UI, so neither requires root or write access to `/usr`.
 
-Provider sign-in supports **device-code flows and manual callback-URL submission**, plus plain API
-keys. No OAuth callback ports are published, so a browser on another machine cannot be redirected
-to a listener inside the container. Use device code or paste the callback URL into the panel.
-
-State lives in `/workspace/.devbox/cliproxy` (mode `0700`): config, management key, provider OAuth
-tokens, logs and plugins.
+The image keeps user-owned seeds outside the workspace and copies them only when the
+corresponding binary is missing from the volume. Existing user-installed versions are
+never overwritten. After updating OpenChamber from its web UI, restart the **Agent**
+application from the Launcher to load the new server process; the upstream container
+update flow intentionally keeps the current server online.
 
 ## OpenCode configuration
 
 OpenCode starts with a working global config, seeded on first boot to
 `~/.config/opencode/opencode.jsonc` (that is `/workspace/.config/opencode/opencode.jsonc`, on the
 persistent volume). It enables LSP, web/code search, the `context7` and `chrome-devtools` MCP
-servers, the background-agents and pty plugins, and registers **Local CLIProxyAPI** as a provider
-pointing at `http://127.0.0.1:8317/v1`.
+servers and the background-agents and pty plugins.
 
-Edit it like any other config — the entrypoint writes the file only when neither `opencode.jsonc`
-nor `opencode.json` exists there, so your changes are never overwritten by a restart or an image
-upgrade. To start over, delete the file and restart the container. The seed template ships at
-`/etc/devbox/opencode.jsonc`.
+## Hostname
 
-> [!NOTE]
-> The provider is configured but has no credentials. Add an account in the CLI Proxy Management
-> Center and mint a proxy API key first, otherwise model calls fail with an auth error.
+The in-sandbox hostname is `devbox` by default. Docker would otherwise assign the
+12-hex container ID, which changes on every recreate. Precedence: explicit
+`docker run --hostname` wins, else `-e DEVBOX_HOSTNAME`, else a random-looking ID
+is replaced with `devbox`. Changing the name at runtime needs `CAP_SYS_ADMIN`,
+so without the daemon flag the entrypoint applies it on a best-effort basis and
+still normalizes `/etc/hosts` (keeps `sudo` quiet) and `$HOSTNAME`.
 
 ## Custom hostname or LAN address in the certificate
 
@@ -149,6 +123,7 @@ Only read when the certificate does not exist yet. To regenerate, delete
 
 | Variable | Default | Effect |
 | --- | --- | --- |
+| `DEVBOX_HOSTNAME` | `devbox` | Stable in-sandbox hostname (explicit `--hostname` wins) |
 | `TLS_SAN` | — | Extra SANs for the generated certificate |
 
 ## Chrome sandbox
@@ -191,11 +166,9 @@ binds loopback only:
 | Desktop bridge (websockify) | `127.0.0.1:9103` | `/vnc/` |
 | Files (FileBrowser) | `127.0.0.1:9104` | `/files/` |
 | Web terminal broker | `127.0.0.1:9105` | `/terminal/api/`, `/terminal/ws/` |
-| CLI Proxy (CLIProxyAPI) | `127.0.0.1:8317` | `/management.html` only |
 
 Internal services sit at 9100–9105, so dev servers you run inside the box (3000, 5173, 8080, …)
-never collide. CLIProxyAPI is the exception at 8317, outside that range: it keeps the upstream
-default port so provider documentation and agent configs work unchanged.
+never collide.
 
 ## Web terminal sessions
 
