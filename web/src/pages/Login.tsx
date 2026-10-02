@@ -32,8 +32,11 @@ export function LoginPage({
   const [name, setName] = useState("");
   const [pw, setPw] = useState("");
   const [confirm, setConfirm] = useState("");
-  // Server-side rejection, surfaced through the form's own error channel so it
-  // renders in the same FieldError slot as client-side validation.
+  // Server-side rejection, rendered as a standalone alert below. It must NOT
+  // go through the Form's `validationErrors`: RAC mirrors those onto the
+  // native inputs via setCustomValidity, which blocks the submit event itself
+  // — the handler that would clear the error never runs, so a second attempt
+  // (even with the right password) is swallowed until a page reload.
   const [serverErr, setServerErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -78,12 +81,7 @@ export function LoginPage({
 
   return (
     <div className="grid h-screen place-items-center px-4">
-      <Form
-        onSubmit={submit}
-        validationErrors={
-          serverErr ? { username: serverErr, password: serverErr } : undefined
-        }
-        className="w-full max-w-sm">
+      <Form onSubmit={submit} className="w-full max-w-sm">
         <Card className="w-full">
           <Card.Header className="items-start gap-1">
             <Avatar size="lg" className="mb-3">
@@ -151,6 +149,12 @@ export function LoginPage({
                 <Input placeholder="repeat" autoComplete="new-password" />
                 <FieldError className="text-sm text-danger" />
               </TextField>
+            ) : null}
+
+            {serverErr ? (
+              <p role="alert" className="mt-4 text-sm text-danger">
+                {serverErr}
+              </p>
             ) : null}
           </Card.Content>
 
