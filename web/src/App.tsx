@@ -15,6 +15,11 @@ const ErrorPage = lazy(() =>
 const TerminalPage = lazy(() =>
   import("./pages/Terminal").then(({ TerminalPage }) => ({ default: TerminalPage })),
 );
+const SettingsPreview = lazy(() =>
+  import("./pages/SettingsPreview").then(({ SettingsPreview }) => ({
+    default: SettingsPreview,
+  })),
+);
 
 function PageFallback() {
   return (
@@ -81,6 +86,19 @@ export function App() {
   }, [location.pathname]);
 
   const onErrorRoute = location.pathname === "/error";
+
+  // Dev-only mock preview: must render without a working control plane, same
+  // as /error, since `vite dev` has no backend for the boot gate.
+  const onPreviewRoute =
+    import.meta.env.DEV && location.pathname === "/settings-preview";
+
+  if (onPreviewRoute) {
+    return (
+      <Suspense fallback={<PageFallback />}>
+        <SettingsPreview />
+      </Suspense>
+    );
+  }
 
   // /error is the one route that must render without a working control plane:
   // nginx sends users here precisely when something upstream is broken, and the

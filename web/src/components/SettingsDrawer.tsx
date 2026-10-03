@@ -10,8 +10,10 @@ import {
   Separator,
   Spinner,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@heroui/react";
-import { Check, GitBranch, KeyRound, Palette, Settings2 } from "lucide-react";
+import { Check, GitBranch, KeyRound, Monitor, Moon, Palette, Settings2, Sun } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { api, type UserSettings } from "../api";
 import {
@@ -179,7 +181,7 @@ export function SettingsDrawer() {
                 Quick settings for this DevBox environment.
               </Description>
             </Drawer.Header>
-            <Drawer.Body className="gap-6">
+            <Drawer.Body className="flex flex-col gap-6">
               {loading ? (
                 <div className="grid place-items-center py-12">
                   <Spinner aria-label="Loading settings" />
@@ -224,7 +226,7 @@ export function SettingsDrawer() {
                           id="timezone"
                           value={draft.timezone}
                           onChange={(event) => updateDraft("timezone", event.target.value)}
-                          className="min-h-10 rounded-field border border-field-border bg-field px-3 text-sm text-field-foreground outline-none focus-visible:ring-2 focus-visible:ring-focus">
+                          className="h-10 w-full rounded-field border border-field-border bg-default px-3 text-sm text-field-foreground shadow-none outline-none hover:bg-default-hover focus:border-field-border-focus focus:bg-field-focus">
                           {timezoneOptions.map((timezone) => (
                             <option key={timezone} value={timezone}>
                               {timezone === "UTC" ? "UTC (recommended)" : timezone}
@@ -256,22 +258,32 @@ export function SettingsDrawer() {
                     <Description className="text-sm text-muted">
                       This preference stays in this browser and is not sent to the server.
                     </Description>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(["system", "light", "dark"] as const).map((option) => (
-                        <Button
-                          key={option}
-                          type="button"
-                          size="sm"
-                          variant={theme === option ? "primary" : "outline"}
-                          aria-label={`Use ${option} theme`}
-                          onPress={() => {
-                            setTheme(option);
-                            saveThemeSetting(option);
-                          }}>
-                          {option === "system" ? "System" : option[0].toUpperCase() + option.slice(1)}
-                        </Button>
+                    <ToggleButtonGroup
+                      fullWidth
+                      size="sm"
+                      selectionMode="single"
+                      selectedKeys={[theme]}
+                      onSelectionChange={(keys) => {
+                        const next = [...keys][0];
+                        if (next === "system" || next === "light" || next === "dark") {
+                          setTheme(next);
+                          saveThemeSetting(next);
+                        }
+                      }}
+                      aria-label="Color theme">
+                      {(
+                        [
+                          { id: "system", label: "System", Icon: Monitor },
+                          { id: "light", label: "Light", Icon: Sun },
+                          { id: "dark", label: "Dark", Icon: Moon },
+                        ] as const
+                      ).map(({ id, label, Icon }) => (
+                        <ToggleButton key={id} id={id} aria-label={`Use ${id} theme`}>
+                          <Icon size={15} />
+                          {label}
+                        </ToggleButton>
                       ))}
-                    </div>
+                    </ToggleButtonGroup>
                   </div>
 
                   <Separator />

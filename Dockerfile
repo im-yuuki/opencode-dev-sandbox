@@ -128,7 +128,7 @@ RUN set -eux; \
 RUN --mount=type=cache,target=/workspace/.npm,uid=1000,gid=1000,sharing=locked \
     set -eux; \
     su -s /bin/bash user -c 'HOME=/workspace npm install -g --prefix /opt/devbox/npm-global --no-audit --no-fund @openchamber/web'; \
-    su -s /bin/bash user -c 'set -euo pipefail; HOME=/opt/devbox/user-seed curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path'; \
+    su -s /bin/bash user -c 'export HOME=/opt/devbox/user-seed; set -euo pipefail; curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path'; \
     test -x /opt/devbox/user-seed/.opencode/bin/opencode; \
     rm -rf /tmp/*
 
