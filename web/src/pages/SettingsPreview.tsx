@@ -11,7 +11,10 @@ const MOCK: UserSettings = {
   gitUserEmail: "ada@example.com",
   gitDefaultBranch: "main",
   timezone: "Asia/Ho_Chi_Minh",
+  passwordlessSudo: false,
 };
+
+let mockSudo = false;
 
 function installMock() {
   const orig = window.fetch.bind(window);
@@ -24,9 +27,14 @@ function installMock() {
           : input.url;
     if (url.includes("/launcher/api/v1/settings")) {
       const method = (init?.method ?? "GET").toUpperCase();
-      if (method === "GET") return Response.json(MOCK);
+      if (method === "GET") return Response.json({ ...MOCK, passwordlessSudo: mockSudo });
       const body = init?.body ? JSON.parse(init.body as string) : {};
       return Response.json({ ...MOCK, ...body });
+    }
+    if (url.includes("/launcher/api/v1/sudo")) {
+      const body = init?.body ? JSON.parse(init.body as string) : {};
+      mockSudo = body.enabled === true;
+      return Response.json({ passwordlessSudo: mockSudo });
     }
     return orig(input, init);
   }) as typeof fetch;

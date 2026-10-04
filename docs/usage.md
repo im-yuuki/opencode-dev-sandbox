@@ -28,7 +28,9 @@ and timestamp caching apply.
 - Only the Unix shadow hash is persisted at `/workspace/.devbox/user-password.hash`, so the same
   login and sudo password survives container recreation as long as the workspace volume is kept.
 - Until first-run setup completes the account is locked, so `sudo` cannot be used at all.
-- There is no `NOPASSWD` sudoers drop-in and no passwordless escalation.
+- There is no passwordless escalation by default. Passwordless sudo is opt-in via the
+  **Sudo access** switch in Launcher settings (a root-owned `0440` sudoers drop-in,
+  validated with `visudo`); turning it off removes the drop-in.
 - `devbox-root` and the fake `sudo` shim from earlier versions are gone.
 - The Cloud Run `no_new_privs` workaround is not supported and has no replacement. On a runtime
   that forbids setuid escalation, `sudo` will not work.

@@ -28,6 +28,7 @@ export interface UserSettings {
   gitUserEmail: string | null;
   gitDefaultBranch: string | null;
   timezone: string;
+  passwordlessSudo: boolean;
 }
 
 export interface MetricsCpu {
@@ -132,6 +133,13 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentPassword, newPassword }),
     }).then(j<{ ok: true }>),
+  setPasswordlessSudo: (enabled: boolean) =>
+    fetch("/launcher/api/v1/sudo", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }).then(j<{ passwordlessSudo: boolean }>),
   services: () => fetch("/launcher/api/v1/services", { credentials: "include" }).then(j<ApiApps>),
   serviceAction: (id: string, action: "start" | "stop" | "restart") =>
     fetch(`/launcher/api/v1/services/${encodeURIComponent(id)}/${action}`, {

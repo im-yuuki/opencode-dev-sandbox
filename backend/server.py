@@ -14,6 +14,7 @@ import os
 import pwd
 import re
 import secrets
+import shutil
 import subprocess
 import threading
 import time
@@ -211,6 +212,72 @@ def change_password(current: str, password: str) -> str | None:
     return None
 
 
+# ---------------- passwordless sudo ----------------
+# Optional escape hatch, off by default: a sudoers drop-in granting USER
+# NOPASSWD. Written atomically by the (root) control plane, validated with
+# visudo before it goes live. Removing the file restores passworded sudo.
+SUDOERS_DROPIN = "/etc/sudoers.d/10-devbox-nopasswd"
+
+
+def passwordless_sudo_enabled() -> bool:
+    """True when the NOPASSWD drop-in exists with an active rule."""
+    try:
+        with open(SUDOERS_DROPIN, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#") and "NOPASSWD" in stripped:
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def set_passwordless_sudo(enabled: bool) -> str | None:
+    """Create or remove the NOPASSWD drop-in. Returns an error string, if any."""
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", USER):
+        return "invalid user name"
+    if not enabled:
+        try:
+            os.unlink(SUDOERS_DROPIN)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return "failed to remove sudoers drop-in"
+        return None
+    tmp_path = None
+    try:
+        os.makedirs(os.path.dirname(SUDOERS_DROPIN), exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="ascii",
+            dir=os.path.dirname(SUDOERS_DROPIN),
+            prefix=".10-devbox-nopasswd.",
+            delete=False,
+        ) as f:
+            tmp_path = f.name
+            f.write(f"{USER} ALL=(ALL) NOPASSWD: ALL\n")
+        if shutil.which("visudo") is not None:
+            check = subprocess.run(
+                ["visudo", "-c", "-f", tmp_path],
+                capture_output=True,
+                text=True,
+            )
+            if check.returncode != 0:
+                return "sudoers validation failed"
+        os.chown(tmp_path, 0, 0)
+        os.chmod(tmp_path, 0o440)
+        os.replace(tmp_path, SUDOERS_DROPIN)
+        return None
+    except (OSError, UnicodeEncodeError):
+        return "failed to write sudoers drop-in"
+    finally:
+        if tmp_path and os.path.exists(tmp_path) and tmp_path != SUDOERS_DROPIN:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+
 # ---------------- user settings ----------------
 def user_environment() -> dict[str, str]:
     env = os.environ.copy()
@@ -334,12 +401,13 @@ def set_timezone(value: str) -> bool:
         return False
 
 
-def read_settings() -> dict[str, str | None]:
+def read_settings() -> dict[str, str | None | bool]:
     return {
         "gitUserName": git_config_value("user.name"),
         "gitUserEmail": git_config_value("user.email"),
         "gitDefaultBranch": git_config_value("init.defaultBranch"),
         "timezone": configured_timezone(),
+        "passwordlessSudo": passwordless_sudo_enabled(),
     }
 
 
@@ -701,6 +769,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if error:
                 return self._send({"error": error}, 400)
             return self._send({"ok": True})
+
+        if path == "/api/v1/sudo":
+            if not self._authed_user():
+                return self._send({"error": "unauthorized"}, 401)
+            enabled = body.get("enabled")
+            if not isinstance(enabled, bool):
+                return self._send({"error": "enabled must be true or false"}, 400)
+            error = set_passwordless_sudo(enabled)
+            if error:
+                return self._send({"error": error}, 500)
+            return self._send({"passwordlessSudo": passwordless_sudo_enabled()})
 
         if path.startswith("/api/v1/services/"):
             if not self._authed_user():

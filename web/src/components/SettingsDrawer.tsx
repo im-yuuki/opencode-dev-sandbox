@@ -9,11 +9,12 @@ import {
   Label,
   Separator,
   Spinner,
+  Switch,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
 } from "@heroui/react";
-import { Check, GitBranch, KeyRound, Monitor, Moon, Palette, Settings2, Sun } from "lucide-react";
+import { Check, GitBranch, KeyRound, Monitor, Moon, Palette, Settings2, Shield, Sun } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { api, type UserSettings } from "../api";
 import {
@@ -40,6 +41,7 @@ const emptyDraft: UserSettings = {
   gitUserEmail: "",
   gitDefaultBranch: "main",
   timezone: "UTC",
+  passwordlessSudo: false,
 };
 
 function SettingHeading({
@@ -72,6 +74,10 @@ export function SettingsDrawer() {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
+  const [sudoEnabled, setSudoEnabled] = useState(false);
+  const [sudoBusy, setSudoBusy] = useState(false);
+  const [sudoError, setSudoError] = useState<string | null>(null);
+  const [sudoNotice, setSudoNotice] = useState<string | null>(null);
 
   useEffect(() => {
     applyTheme(theme);
@@ -94,7 +100,9 @@ export function SettingsDrawer() {
           gitUserEmail: next.gitUserEmail ?? "",
           gitDefaultBranch: next.gitDefaultBranch ?? "main",
           timezone: next.timezone,
+          passwordlessSudo: next.passwordlessSudo ?? false,
         });
+        setSudoEnabled(next.passwordlessSudo ?? false);
         setTimezoneOptions((current) =>
           current.includes(next.timezone) ? current : [next.timezone, ...current],
         );
@@ -158,6 +166,26 @@ export function SettingsDrawer() {
       setPasswordError((error as Error).message);
     } finally {
       setPasswordBusy(false);
+    }
+  };
+
+  const toggleSudo = async (next: boolean) => {
+    setSudoBusy(true);
+    setSudoError(null);
+    setSudoNotice(null);
+    try {
+      const res = await api.setPasswordlessSudo(next);
+      setSudoEnabled(res.passwordlessSudo);
+      setDraft((current) => ({ ...current, passwordlessSudo: res.passwordlessSudo }));
+      setSudoNotice(
+        res.passwordlessSudo
+          ? "Passwordless sudo enabled."
+          : "Sudo requires your password again.",
+      );
+    } catch (error) {
+      setSudoError((error as Error).message);
+    } finally {
+      setSudoBusy(false);
     }
   };
 
@@ -251,6 +279,33 @@ export function SettingsDrawer() {
                       </p>
                     ) : null}
                   </Form>
+
+                  <Separator />
+                  <div className="flex flex-col gap-3">
+                    <SettingHeading icon={Shield}>Sudo access</SettingHeading>
+                    <Switch
+                      isSelected={sudoEnabled}
+                      isDisabled={sudoBusy}
+                      onChange={(next) => void toggleSudo(next)}>
+                      <Switch.Content>
+                        <Switch.Control>
+                          <Switch.Thumb />
+                        </Switch.Control>
+                        <div className="flex flex-col gap-0.5">
+                          <Label>Passwordless sudo</Label>
+                          <Description>
+                            Allow `sudo` without entering your password. Applies immediately.
+                          </Description>
+                        </div>
+                      </Switch.Content>
+                    </Switch>
+                    {sudoError ? <FieldError>{sudoError}</FieldError> : null}
+                    {sudoNotice ? (
+                      <p className="text-sm text-success" role="status">
+                        {sudoNotice}
+                      </p>
+                    ) : null}
+                  </div>
 
                   <Separator />
                   <div className="flex flex-col gap-3">
