@@ -3,6 +3,8 @@ name: Build opencode-dev-sanbox image
 on:
   # Every branch push builds its own image variant; version tags (v*) and
   # workflow_dispatch (any branch) too.
+  schedule:
+    - cron: "0 0 * * *"
   push:
     branches: ["main", "master"]
     tags: ['v*']
