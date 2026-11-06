@@ -133,7 +133,14 @@ RUN --mount=type=cache,target=/workspace/.npm,uid=1000,gid=1000,sharing=locked \
     rm -rf /tmp/*
 
 # ============ code-server ============
-RUN set -eux; arch="$(dpkg --print-architecture)"; ver="$(curl -fsSL https://api.github.com/repos/coder/code-server/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')"; test -n "$ver"; aria2c $ARIA2_OPTS -o /tmp/cs.tar.gz "https://github.com/coder/code-server/releases/download/v${ver}/code-server-${ver}-linux-${arch}.tar.gz"; mkdir -p /usr/local/lib/code-server; tar -xzf /tmp/cs.tar.gz -C /usr/local/lib/code-server --strip-components=1; rm -rf /tmp/cs.tar.gz
+RUN set -eu; \
+    arch="$(dpkg --print-architecture)"; \
+    ver="$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/coder/code-server/releases/latest | sed -n 's#.*/tag/v\([^/]*\)$#\1#p')"; \
+    test -n "${ver}"; \
+    aria2c $ARIA2_OPTS -o /tmp/cs.tar.gz "https://github.com/coder/code-server/releases/download/v${ver}/code-server-${ver}-linux-${arch}.tar.gz"; \
+    mkdir -p /usr/local/lib/code-server; \
+    tar -xzf /tmp/cs.tar.gz -C /usr/local/lib/code-server --strip-components=1; \
+    rm -rf /tmp/cs.tar.gz
 
 # ============ FileBrowser Quantum ============
 # gtsteffaniak/filebrowser, Apache-2.0.
